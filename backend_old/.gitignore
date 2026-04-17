@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Supabase local
+supabase/.branches/
+supabase/tmp/
+
+# Test coverage
+coverage/
+
+# Redis / BullMQ
+dump.rdb
+
+# Misc
+*.pid
+*.seed
