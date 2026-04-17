@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd server && npm install && npm run build && mkdir -p ../api && mkdir -p ../src && cp -r dist/api/* ../api/ && cp -r dist/src/* ../src/",
+  "project": "prophet",
+  "buildCommand": "cd server && npm install",
   "outputDirectory": ".",
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" }
