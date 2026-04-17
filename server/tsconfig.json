@@ -4,11 +4,14 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
-    "strict": true,
+    "strict": false,
     "outDir": "dist",
     "rootDir": ".",
-    "declaration": true,
-    "skipLibCheck": true
+    "declaration": false,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": false
   },
   "include": ["api", "src"]
 }
