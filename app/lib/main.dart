@@ -5,6 +5,8 @@ import 'presentation/screens/analysis_screen.dart';
 import 'presentation/screens/prophet_screen.dart';
 import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/config_screen.dart';
+import 'presentation/screens/story_detail_screen.dart';
+import 'data/models/story.dart';
 
 void main() {
   runApp(const ProphetApp());
@@ -19,6 +21,18 @@ class ProphetApp extends StatelessWidget {
       title: 'Prophet',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
+      initialRoute: '/',
+      onGenerateRoute: (settings) {
+        if (settings.name == '/story') {
+          final story = settings.arguments as Story;
+          return MaterialPageRoute(
+            builder: (_) => StoryDetailScreen(story: story),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => const MainShell(),
+        );
+      },
       home: const MainShell(),
     );
   }
@@ -58,6 +72,10 @@ class _MainShellState extends State<MainShell> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (i) => setState(() => _currentIndex = i),
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppTheme.bg,
+          selectedItemColor: AppTheme.primary,
+          unselectedItemColor: AppTheme.textoSec,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.radar),

@@ -38,4 +38,24 @@ class ApiService {
 
     return Indicator.fromJson(json.decode(res.body));
   }
+
+  Future<List<Source>> getSources() async {
+    final res = await _client.get(
+      Uri.parse('${ApiConstants.baseUrl}/sources'),
+    );
+    if (res.statusCode != 200) throw Exception('Failed to load sources');
+
+    final data = json.decode(res.body);
+    return (data['sources'] as List).map((e) => Source.fromJson(e)).toList();
+  }
+
+  Future<List<Region>> getRegions() async {
+    final res = await _client.get(
+      Uri.parse('${ApiConstants.baseUrl}/regions'),
+    );
+    if (res.statusCode != 200) throw Exception('Failed to load regions');
+
+    final data = json.decode(res.body);
+    return (data['regions'] as List).map((e) => Region.fromJson(e)).toList();
+  }
 }
