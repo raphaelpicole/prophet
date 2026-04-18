@@ -290,6 +290,31 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  List<CircleMarker> _buildHeatmapCircles() {
+    final data = [
+      {'code': 'SAM', 'count': 18},
+      {'code': 'NAM', 'count': 12},
+      {'code': 'EUR', 'count': 8},
+      {'code': 'ASI', 'count': 6},
+      {'code': 'MID', 'count': 4},
+      {'code': 'GLB', 'count': 5},
+    ];
+    return data.map((e) {
+      final code = e['code'] as String;
+      final count = e['count'] as int;
+      final opacity = (count / 20.0).clamp(0.1, 0.6);
+      final radius = (count * 3.0).clamp(25.0, 80.0);
+      final color = _regionColor(code);
+      return CircleMarker(
+        point: _regionCoords[code] ?? LatLng(0, 0),
+        radius: radius,
+        color: color.withValues(alpha: opacity * 0.35),
+        borderColor: color.withValues(alpha: opacity),
+        borderStrokeWidth: 1.5,
+      );
+    }).toList();
+  }
+
   String _flag(String code) {
     switch (code) {
       case 'SAM': return '🟠';
