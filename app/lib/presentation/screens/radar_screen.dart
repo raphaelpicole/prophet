@@ -122,9 +122,11 @@ class _RadarScreenState extends State<RadarScreen> {
                     ],
                   ),
                 ),
+              ),
 
-                // Search bar
-                Padding(
+              // Search bar
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: TextField(
                     controller: _searchController,
