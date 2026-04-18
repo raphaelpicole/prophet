@@ -61,6 +61,17 @@ async function fetchFeed(source) {
   }
 }
 
+// Log error to Supabase logs table
+async function logError(level, source, message, context) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ level, source, message, context, resolved: false }),
+    });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -149,6 +160,7 @@ export default async function handler(req, res) {
 
   } catch (e) {
     log.push(`❌ Erro: ${e.message}`);
+    await logError('error', 'cron-collect', e.message, { stack: e.stack });
     return res.status(500).json({ success: false, log, error: e.message });
   }
 }

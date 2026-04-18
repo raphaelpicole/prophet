@@ -79,4 +79,14 @@ class ApiService {
     final data = json.decode(res.body);
     return data['predictions'] as List<dynamic>;
   }
+
+  Future<Map<String, dynamic>?> getLogs() async {
+    try {
+      final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/logs'));
+      if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
