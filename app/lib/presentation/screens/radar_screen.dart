@@ -23,6 +23,7 @@ class _RadarScreenState extends State<RadarScreen> {
   bool _loading = true;
   String? _error;
   String? _selectedCycle;
+  String? _selectedRegion;
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
@@ -42,7 +43,7 @@ class _RadarScreenState extends State<RadarScreen> {
     
     try {
       final results = await Future.wait([
-        _api.getStories(cycle: _selectedCycle, search: _searchQuery, limit: 20).catchError((_) => <Story>[]),
+        _api.getStories(cycle: _selectedCycle, region: _selectedRegion, search: _searchQuery, limit: 20).catchError((_) => <Story>[]),
         _api.getIndicators().catchError((_) => null),
       ]);
 
@@ -65,6 +66,11 @@ class _RadarScreenState extends State<RadarScreen> {
 
   void _setCycle(String? cycle) {
     setState(() { _selectedCycle = cycle; });
+    _loadData();
+  }
+
+  void _setRegion(String? region) {
+    setState(() { _selectedRegion = region; });
     _loadData();
   }
 
@@ -177,7 +183,29 @@ class _RadarScreenState extends State<RadarScreen> {
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              // Filtro por região
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _regionChip('🌐', 'Todos', _selectedRegion == null, () => _setRegion(null)),
+                      _regionChip('🌎', 'América do Sul', _selectedRegion == 'SAM', () => _setRegion('SAM')),
+                      _regionChip('🌍', 'Europa', _selectedRegion == 'EUR', () => _setRegion('EUR')),
+                      _regionChip('🟡', 'Oriente Médio', _selectedRegion == 'MID', () => _setRegion('MID')),
+                      _regionChip('🌏', 'Ásia', _selectedRegion == 'ASI', () => _setRegion('ASI')),
+                      _regionChip('🌐', 'América do Norte', _selectedRegion == 'NAM', () => _setRegion('NAM')),
+                      _regionChip('🌿', 'África', _selectedRegion == 'AFR', () => _setRegion('AFR')),
+                      _regionChip('🔵', 'Oceania', _selectedRegion == 'OCE', () => _setRegion('OCE')),
+                      _regionChip('🌍', 'Global', _selectedRegion == 'GLB', () => _setRegion('GLB')),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
               // KPI Cards
               SliverToBoxAdapter(
