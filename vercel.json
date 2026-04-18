@@ -1,8 +1,9 @@
 {
   "version": 2,
   "project": "prophet",
-  "buildCommand": "cd server && npm install",
-  "outputDirectory": ".",
+  "installCommand": "cd server && npm install",
+  "buildCommand": "bash build-frontend.sh",
+  "outputDirectory": "app/build/web",
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ]

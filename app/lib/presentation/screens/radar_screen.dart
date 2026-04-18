@@ -22,6 +22,12 @@ class _RadarScreenState extends State<RadarScreen> {
   Indicator? _indicator;
   bool _loading = true;
   String? _error;
+  String? _selectedCycle;
+
+  static const _cycles = [
+    'conflito', 'economico', 'politico',
+    'social', 'tecnologico', 'ambiental', 'cultural',
+  ];
 
   @override
   void initState() {
@@ -33,9 +39,8 @@ class _RadarScreenState extends State<RadarScreen> {
     setState(() { _loading = true; _error = null; });
     
     try {
-      // Carrega stories e indicators em paralelo
       final results = await Future.wait([
-        _api.getStories(limit: 20).catchError((_) => <Story>[]),
+        _api.getStories(cycle: _selectedCycle, limit: 20).catchError((_) => <Story>[]),
         _api.getIndicators().catchError((_) => null),
       ]);
 
@@ -43,7 +48,6 @@ class _RadarScreenState extends State<RadarScreen> {
       final indicator = results[1] as Indicator?;
 
       setState(() {
-        // Se API retornou vazio, usa mock como fallback
         _stories = stories.isEmpty ? MockService.getStories() : stories;
         _indicator = indicator ?? MockService.getIndicator();
         _loading = false;
@@ -55,6 +59,11 @@ class _RadarScreenState extends State<RadarScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _setCycle(String? cycle) {
+    setState(() { _selectedCycle = cycle; });
+    _loadData();
   }
 
   @override
@@ -107,6 +116,27 @@ class _RadarScreenState extends State<RadarScreen> {
                   ),
                 ),
               ),
+
+              // Filtro por ciclo
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _filterChip('Todos', _selectedCycle == null, () => _setCycle(null)),
+                      ..._cycles.map((c) => _filterChip(
+                        c[0].toUpperCase() + c.substring(1),
+                        _selectedCycle == c,
+                        () => _setCycle(c),
+                      )),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // KPI Cards
               SliverToBoxAdapter(
@@ -230,6 +260,33 @@ class _RadarScreenState extends State<RadarScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : AppTheme.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? AppTheme.primary : AppTheme.textoSec.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppTheme.textoSec,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),

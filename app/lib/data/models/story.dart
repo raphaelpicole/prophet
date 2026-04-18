@@ -22,6 +22,8 @@ class Story {
   });
 
   factory Story.fromJson(Map<String, dynamic> json) {
+    // hotness pode vir como 'hotness' ou '热度' (chinês)
+    num hotnessRaw = json['hotness'] ?? json['热度'] ?? 0;
     return Story(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
@@ -29,7 +31,7 @@ class Story {
       mainSubject: json['main_subject'] ?? '',
       cycle: json['cycle'] ?? 'politico',
       sentimentTrend: json['sentiment_trend'] ?? 'stable',
-      hotness: json['hotness'] ?? 0,
+      hotness: hotnessRaw.toInt(),
       articleCount: json['article_count'] ?? 0,
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
     );
