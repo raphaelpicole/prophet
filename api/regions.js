@@ -6,25 +6,25 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
+const MOCK_REGIONS = [
+  { id: '1', name: '🌍 Global', code: 'GLB', parent_id: null },
+  { id: '2', name: '🌎 América do Sul', code: 'SAM', parent_id: null },
+  { id: '3', name: '🇧🇷 Brasil', code: 'BRA', parent_id: '2' },
+  { id: '4', name: '🇺🇸 Estados Unidos', code: 'USA', parent_id: '5' },
+  { id: '5', name: '🌐 América do Norte', code: 'NAM', parent_id: null },
+  { id: '6', name: '🌍 Europa', code: 'EUR', parent_id: null },
+  { id: '7', name: '🌏 Ásia', code: 'ASI', parent_id: null },
+  { id: '8', name: '🟡 Oriente Médio', code: 'MID', parent_id: null },
+];
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/regions?select=*&order=name`, { headers });
-    const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: data.message });
+  const roots = MOCK_REGIONS.filter(r => !r.parent_id);
+  const children = MOCK_REGIONS.filter(r => r.parent_id);
+  const tree = roots.map(r => ({ ...r, children: children.filter(c => c.parent_id === r.id) }));
 
-    const roots = (data || []).filter((r) => !r.parent_id);
-    const children = (data || []).filter((r) => r.parent_id);
-    const tree = roots.map((root) => ({
-      ...root,
-      children: children.filter((c) => c.parent_id === root.id),
-    }));
-
-    return res.status(200).json({ regions: data || [], tree });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
+  return res.status(200).json({ regions: MOCK_REGIONS, tree });
 }
