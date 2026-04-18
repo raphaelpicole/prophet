@@ -25,6 +25,7 @@ import { parseMetropolesHomepage } from '../collectors/metropoles.js';
 import { contentHash, checkDuplicate } from '../dedup/deduplicator.js';
 import { mockAnalyze } from '../analyzer/mock-analyzer.js';
 import { analyzeWithGroq } from '../analyzer/groq-analyzer.js';
+import { analyzeWithOllamaCloud } from '../analyzer/ollama-cloud-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
 import type { RawArticle } from '../collectors/rss.js';
 
@@ -215,18 +216,42 @@ export async function runPipeline(): Promise<PipelineResult> {
     
     for (const article of pendingArticles) {
       try {
-        // Tenta usar Groq primeiro, cai para mock se falhar
-        const analysis = await analyzeWithGroq({
-          id: article.id,
-          title: article.title,
-          content: article.content || undefined,
-          source_id: article.source_id,
-        });
-        
-        const modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
-        
-        if (!analysis.used_groq && analysis.error) {
-          console.log(`      ⚠️  Groq indisponível, usando mock: ${analysis.error}`);
+        // Prioridade: Ollama Cloud (kimi) → Groq → Mock
+        let analysis: any;
+        let modelUsed: string;
+
+        if (process.env.OLLAMA_API_KEY) {
+          console.log(`      🤖 Usando Ollama Cloud (kimi-k2.5)`);
+          analysis = await analyzeWithOllamaCloud({
+            id: article.id,
+            title: article.title,
+            content: article.content || undefined,
+            source_id: article.source_id,
+          });
+          modelUsed = analysis.used_ollama_cloud
+            ? 'ollama-cloud-kimi-k2.5'
+            : 'mock-analyzer';
+        } else if (process.env.GROQ_API_KEY) {
+          console.log(`      ⚡ Usando Groq (llama-3.3-70b)`);
+          analysis = await analyzeWithGroq({
+            id: article.id,
+            title: article.title,
+            content: article.content || undefined,
+            source_id: article.source_id,
+          });
+          modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
+        } else {
+          console.log(`      🎭 Usando mock analyzer (sem API key)`);
+          analysis = await mockAnalyze({
+            id: article.id,
+            title: article.title,
+            source_id: article.source_id,
+          });
+          modelUsed = 'mock-analyzer';
+        }
+
+        if (!analysis.used_ollama_cloud && !analysis.used_groq && analysis.error) {
+          console.log(`      ⚠️  Analyzer indisponível: ${analysis.error}`);
         }
         
         // Salva análise
@@ -254,7 +279,7 @@ export async function runPipeline(): Promise<PipelineResult> {
         result.summary.totalAnalyzed++;
         
         // Pequeno delay para não sobrecarregar API
-        if (analysis.used_groq) {
+        if (analysis.used_ollama_cloud || analysis.used_groq) {
           await new Promise(r => setTimeout(r, 200));
         }
         
