@@ -59,4 +59,12 @@ class ApiService {
     final data = json.decode(res.body);
     return (data['regions'] as List).map((e) => Region.fromJson(e)).toList();
   }
+
+  Future<Map<String, dynamic>> getStoryDetail(String id) async {
+    final res = await _client.get(
+      Uri.parse('${ApiConstants.baseUrl}/story').replace(queryParameters: {'id': id}),
+    );
+    if (res.statusCode != 200) throw Exception('Failed to load story detail');
+    return json.decode(res.body);
+  }
 }
