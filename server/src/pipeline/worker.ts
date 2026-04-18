@@ -28,10 +28,10 @@ import { analyzeWithGroq } from '../analyzer/groq-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
 import type { RawArticle } from '../collectors/rss.js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || '';
+const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
