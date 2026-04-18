@@ -25,14 +25,13 @@ import { parseMetropolesHomepage } from '../collectors/metropoles.js';
 import { contentHash, checkDuplicate } from '../dedup/deduplicator.js';
 import { mockAnalyze } from '../analyzer/mock-analyzer.js';
 import { analyzeWithGroq } from '../analyzer/groq-analyzer.js';
-import { analyzeWithOllamaCloud } from '../analyzer/ollama-cloud-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
 import type { RawArticle } from '../collectors/rss.js';
 
-const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_KEY || '';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
@@ -216,42 +215,18 @@ export async function runPipeline(): Promise<PipelineResult> {
     
     for (const article of pendingArticles) {
       try {
-        // Prioridade: Ollama Cloud (kimi) → Groq → Mock
-        let analysis: any;
-        let modelUsed: string;
-
-        if (process.env.OLLAMA_API_KEY) {
-          console.log(`      🤖 Usando Ollama Cloud (kimi-k2.5)`);
-          analysis = await analyzeWithOllamaCloud({
-            id: article.id,
-            title: article.title,
-            content: article.content || undefined,
-            source_id: article.source_id,
-          });
-          modelUsed = analysis.used_ollama_cloud
-            ? 'ollama-cloud-kimi-k2.5'
-            : 'mock-analyzer';
-        } else if (process.env.GROQ_API_KEY) {
-          console.log(`      ⚡ Usando Groq (llama-3.3-70b)`);
-          analysis = await analyzeWithGroq({
-            id: article.id,
-            title: article.title,
-            content: article.content || undefined,
-            source_id: article.source_id,
-          });
-          modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
-        } else {
-          console.log(`      🎭 Usando mock analyzer (sem API key)`);
-          analysis = await mockAnalyze({
-            id: article.id,
-            title: article.title,
-            source_id: article.source_id,
-          });
-          modelUsed = 'mock-analyzer';
-        }
-
-        if (!analysis.used_ollama_cloud && !analysis.used_groq && analysis.error) {
-          console.log(`      ⚠️  Analyzer indisponível: ${analysis.error}`);
+        // Tenta usar Groq primeiro, cai para mock se falhar
+        const analysis = await analyzeWithGroq({
+          id: article.id,
+          title: article.title,
+          content: article.content || undefined,
+          source_id: article.source_id,
+        });
+        
+        const modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
+        
+        if (!analysis.used_groq && analysis.error) {
+          console.log(`      ⚠️  Groq indisponível, usando mock: ${analysis.error}`);
         }
         
         // Salva análise
@@ -279,7 +254,7 @@ export async function runPipeline(): Promise<PipelineResult> {
         result.summary.totalAnalyzed++;
         
         // Pequeno delay para não sobrecarregar API
-        if (analysis.used_ollama_cloud || analysis.used_groq) {
+        if (analysis.used_groq) {
           await new Promise(r => setTimeout(r, 200));
         }
         
@@ -333,8 +308,9 @@ export async function runPipeline(): Promise<PipelineResult> {
 async function groupArticlesIntoStories(): Promise<number> {
   const { data: analyzedArticles } = await supabase
     .from('raw_articles')
-    .select('id, title')
-    .eq('status', 'analyzed');
+    .select('id, title, summary')
+    .eq('status', 'analyzed')
+    .is('id', 'not.null'); // Simplificação
   
   if (!analyzedArticles || analyzedArticles.length === 0) {
     return 0;

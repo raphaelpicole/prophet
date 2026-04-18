@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+import { supabase } from '../src/db/supabase.js';
 
 /**
  * API /api/stories — lista histórias com filtros
@@ -22,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-
+  
   const { 
     cycle, 
     region, 
@@ -33,40 +31,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     search,
   } = req.query;
   
-  const params = new URLSearchParams();
-  params.set('select', '*');
-  params.set('archived', 'eq.false');
-  params.set('order', 'updated_at.desc');
-  params.set('limit', limit as string);
-  params.set('offset', offset as string);
+  let query = supabase
+    .from('v_story_indicators')
+    .select('*')
+    .eq('archived', false)
+    .order('updated_at', { ascending: false })
+    .range(parseInt(offset as string), parseInt(offset as string) + parseInt(limit as string) - 1);
   
-  if (cycle) params.set('cycle', `eq.${cycle}`);
-  if (region) params.set('region', `eq.${region}`);
-  if (search) params.set('main_subject', `ilike.*${search}*`);
-  
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/stories?${params.toString()}`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'count=exact',
-      }
-    });
-    
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(r.status).json({ error: data.message || 'supabase error' });
-    }
-    
-    return res.status(200).json({
-      stories: data,
-      pagination: {
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-      },
-    });
-  } catch(e: any) {
-    return res.status(500).json({ error: e.message });
+  if (cycle) {
+    query = query.eq('cycle', cycle);
   }
+  
+  if (bias) {
+    // Filtro simplificado por faixa de bias_score
+    const biasMap: Record<string, { min: number; max: number }> = {
+      'esquerda': { min: -1, max: -0.5 },
+      'centro-esquerda': { min: -0.5, max: -0.1 },
+      'centro': { min: -0.1, max: 0.1 },
+      'centro-direita': { min: 0.1, max: 0.5 },
+      'direita': { min: 0.5, max: 1 },
+    };
+    
+    const range = biasMap[bias as string];
+    if (range) {
+      query = query.gte('avg_bias', range.min).lte('avg_bias', range.max);
+    }
+  }
+  
+  if (search) {
+    query = query.ilike('main_subject', `%${search}%`);
+  }
+  
+  const { data, error } = await query;
+  
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  
+  return res.status(200).json({
+    stories: data || [],
+    pagination: {
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+      total: data?.length || 0,
+    },
+  });
 }
