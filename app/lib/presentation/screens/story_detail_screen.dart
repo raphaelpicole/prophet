@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 import '../../data/services/api_service.dart';
@@ -46,7 +48,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
           style: const TextStyle(color: AppTheme.textoSec, fontSize: 13, fontWeight: FontWeight.w600),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.share, color: AppTheme.textoSec, size: 20), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.share, color: AppTheme.textoSec, size: 20), onPressed: _shareStory),
         ],
       ),
       body: SingleChildScrollView(
@@ -84,6 +86,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            // Sentiment timeline chart
+            _sentimentTimeline(),
+
             const SizedBox(height: 24),
             const Text('📰 Artigos', style: TextStyle(color: AppTheme.texto, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
@@ -171,6 +177,87 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
       default: return AppTheme.textoSec;
     }
   }
+
+  Future<void> _shareStory() async {
+    final url = Uri.parse('https://twitter.com/intent/tweet?text=${Uri.encodeComponent(widget.story.title)}&url=${Uri.encodeComponent("https://prophet-olive.vercel.app")}');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Widget _sentimentTimeline() {
+    // Mock data simulating sentiment trend over last 7 days
+    final spots = [
+      FlSpot(0, 0.3), FlSpot(1, 0.5), FlSpot(2, 0.4),
+      FlSpot(3, 0.7), FlSpot(4, 0.6), FlSpot(5, 0.8), FlSpot(6, 0.9),
+    ];
+    final labels = ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Agora'];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('📈 Tendência de Sentimento', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 120,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (v, meta) => Text(labels[v.toInt()] ?? '', style: const TextStyle(color: AppTheme.textoSec, fontSize: 9)),
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppTheme.primary,
+                    barWidth: 3,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppTheme.primary.withValues(alpha: 0.15),
+                    ),
+                  ),
+                ],
+                minY: 0,
+                maxY: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _legend('😰 Negativo', AppTheme.alerta),
+              _legend('😐 Neutro', AppTheme.textoSec),
+              _legend('😊 Positivo', AppTheme.sucesso),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legend(String label, Color color) => Row(
+    children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+      const SizedBox(width: 4),
+      Text(label, style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+    ],
+  );
 
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
