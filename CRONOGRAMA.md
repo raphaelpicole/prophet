@@ -35,23 +35,24 @@
 
 ---
 
-## 🔄 Fase 4 — Pipeline LLM (pendente)
-- [ ] Coletor cron diário (RSS → Supabase)
-- [ ] `stories` table populada com grouping automático
-- [ ] `analysis` table populada (viés/sentimento por artigo)
-- [ ] `regions` e `v_source_stats` criados no banco real
+## 🔄 Fase 4 — Pipeline LLM (parcialmente completo)
+- [x] `/api/cron/collect` — RSS → Supabase com dedup real
+- [x] `stories` table populada + grouping (parcial)
+- [x] `regions` e `v_source_stats` criados no banco real
+- [ ] `analysis` table populada via LLM (`LLM_API_KEY` needed)
+- [ ] `stories` grouping automático via `grouper.ts` ( wiring pendente)
 
 ---
 
 ## 📋 Fase 5 — Melhorias (backlog)
-- [ ] Notificações push (web push)
-- [ ] PWANable — add to home screen
-- [ ] Gráfico de evolução temporal de story (sentiment trend)
-- [ ] Filtro por região no RadarScreen → `GET /api/stories?region=X`
-- [ ] Mapa com heatmap de histórias por região
-- [ ] Track record real do Prophet (tabela `predictions`)
-- [ ] Integração Twitter/X para share de stories
-- [ ] Docker local pra rodar collect sem Vercel
+- [ ] **Filtro por região no RadarScreen** → `GET /api/stories?region=X`
+- [ ] **PWA** — manifest + service worker (add to home screen)
+- [ ] **Story timeline** — gráfico de evolução temporal (sentiment trend)
+- [ ] **Mapa heatmap** — densidade de histórias por região
+- [ ] **Track record real** — tabela `predictions` + histórico
+- [ ] **Twitter/X share** — de stories
+- [ ] **Docker local** — collect sem Vercel
+- [ ] **Push notifications** — web push
 
 ---
 
@@ -71,13 +72,13 @@ Vercel (serverless functions)
   └─ api/cron/collect.js → RSS → Supabase pipeline
 
 Supabase (banco)
-  └─ raw_articles (✔ dados reais)
-  └─ stories (✔ sendo populado pelo collect)
-  └─ sources (✔ configurado)
-  └─ regions (⚠ pendente — usar mock)
-  └─ v_source_stats (⚠ pendente — usar mock)
+  └─ raw_articles (✔ 263+ artigos)
+  └─ sources (✔ 10 fontes ativas)
+  └─ stories (✔ 20 stories agrupadas)
+  └─ regions (✔ 8 regiões seed)
+  └─ v_source_stats (✔ view com stats reais)
   └─ analysis (⚠ pendente — LLM pipeline)
-  └─ predictions (⚠ pendente — forecasting)
+  └─ predictions (⚠ mock — forecasting)
 ```
 
 ---
