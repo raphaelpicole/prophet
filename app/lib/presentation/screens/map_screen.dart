@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/constants.dart';
 import '../../data/models/source.dart';
 import '../../data/services/api_service.dart';
+import 'article_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -16,10 +17,15 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final ApiService _api = ApiService();
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
   List<Region>? _regions;
+  List<Story>? _stories;
   bool _loading = true;
+  bool _searching = false;
   String _selectedRegion = 'Todos';
   int _selectedTab = 0;
+  String _searchQuery = '';
+  List<dynamic> _searchResults = [];
 
   static const _regionCoords = {
     'GLB': LatLng(20, 0),
@@ -40,19 +46,59 @@ class _MapScreenState extends State<MapScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
     try {
-      final regions = await _api.getRegions().catchError((_) => <Region>[]);
+      final results = await Future.wait([
+        _api.getRegions().catchError((_) => <Region>[]),
+        _api.getStories(limit: 50).catchError((_) => <Story>[]),
+      ]);
       if (mounted) setState(() {
-        _regions = regions.isEmpty ? _mockRegions() : regions;
+        _regions = (results[0] as List<Region>).isEmpty ? _mockRegions() : results[0] as List<Region>;
+        _stories = (results[1] as List<Story>).isEmpty ? MockService.getStories() : results[1] as List<Story>;
         _loading = false;
       });
     } catch (e) {
       if (mounted) setState(() {
         _regions = _mockRegions();
+        _stories = MockService.getStories();
         _loading = false;
       });
     }
+  }
+
+  Future<void> _search(String query) async {
+    if (query.length < 2) {
+      setState(() { _searchResults = []; _searching = false; });
+      return;
+    }
+    setState(() { _searching = true; });
+    try {
+      final results = await _api.getStories(search: query, limit: 10).catchError((_) => <Story>[]);
+      if (mounted) setState(() {
+        _searchResults = results.isEmpty ? _mockSearch(query) : results.cast<dynamic>();
+        _searching = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        _searchResults = _mockSearch(query);
+        _searching = false;
+      });
+    }
+  }
+
+  List<dynamic> _mockSearch(String query) {
+    final q = query.toLowerCase();
+    return (_stories ?? [])
+        .where((s) => s.title.toLowerCase().contains(q) || (s.summary ?? '').toLowerCase().contains(q))
+        .take(5)
+        .map((s) => {'id': s.id, 'title': s.title, 'source': s.sourceName, 'hotness': s.hotness, 'cycle': s.cycle})
+        .toList();
   }
 
   List<Region> _mockRegions() {
@@ -76,7 +122,8 @@ class _MapScreenState extends State<MapScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            Expanded(child: _buildMap()),
+            if (_selectedTab == 0) _buildSearchBar(),
+            Expanded(child: _selectedTab == 0 ? _buildMapTab() : _buildPredictionsTab()),
             _buildRegionSelector(),
           ],
         ),
@@ -103,21 +150,179 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _tabBtn(String label, int tab) {
-    final active = _selectedTab == tab;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = tab),
-      child: Text(label, style: TextStyle(
-        color: active ? AppTheme.primary : AppTheme.textoSec,
-        fontSize: 13, fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-      )),
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (v) {
+          setState(() => _searchQuery = v);
+          _search(v);
+        },
+        style: const TextStyle(color: AppTheme.texto, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: '🔍 Buscar notícias no mapa...',
+          hintStyle: const TextStyle(color: AppTheme.textoSec, fontSize: 14),
+          prefixIcon: const Icon(Icons.search, color: AppTheme.textoSec, size: 20),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: AppTheme.textoSec, size: 18),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() { _searchQuery = ''; _searchResults = []; });
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: AppTheme.card,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppTheme.surface, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildMap() {
+  Widget _buildMapTab() {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
+
+    // Mostrar resultados da busca
+    if (_searchQuery.isNotEmpty || _searchResults.isNotEmpty) {
+      return _buildSearchResults();
+    }
+
+    return Column(
+      children: [
+        Expanded(child: _buildMap()),
+        _buildRegionInfo(),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_searching) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2),
+            SizedBox(height: 12),
+            Text('Buscando...', style: TextStyle(color: AppTheme.textoSec, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    if (_searchResults.isEmpty && _searchQuery.length >= 2) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off, color: AppTheme.textoSec, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Nenhum resultado para "$_searchQuery"',
+              style: const TextStyle(color: AppTheme.textoSec, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: _searchResults.length,
+      itemBuilder: (ctx, i) {
+        final item = _searchResults[i];
+        final title = item is Map ? item['title'] : item.title;
+        final source = item is Map ? item['source'] : item.sourceName;
+        final hotness = item is Map ? item['hotness'] : item.hotness;
+        final cycle = item is Map ? item['cycle'] : item.cycle;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            leading: CircleAvatar(
+              backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
+              radius: 18,
+              child: Text('${hotness ?? 0}', style: const TextStyle(
+                color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
+              )),
+            ),
+            title: Text(title ?? '', style: const TextStyle(
+              color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500,
+            )),
+            subtitle: Row(
+              children: [
+                Text(source ?? '', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(_cycleLabel(cycle ?? ''), style: const TextStyle(
+                    color: AppTheme.primary, fontSize: 9, fontWeight: FontWeight.w600,
+                  )),
+                ),
+              ],
+            ),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textoSec, size: 20),
+            onTap: () => _openArticle(item),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openArticle(dynamic item) {
+    final storyId = item is Map ? item['id'] : item.id;
+    final story = _stories?.firstWhere(
+      (s) => s.id == storyId,
+      orElse: () => _stories!.first,
+    );
+    if (story != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ArticleDetailScreen(story: story),
+        ),
+      );
+    }
+  }
+
+  String _cycleLabel(String cycle) {
+    const labels = {
+      'conflito': '⚔️ Conflito',
+      'economico': '📊 Economia',
+      'politico': '🏛️ Político',
+      'social': '👥 Social',
+      'tecnologico': '⚡ Tech',
+      'ambiental': '🌱 Ambiental',
+      'cultural': '🎭 Cultural',
+    };
+    return labels[cycle] ?? cycle;
+  }
+
+  Widget _buildMap() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       decoration: BoxDecoration(
@@ -131,6 +336,7 @@ class _MapScreenState extends State<MapScreen> {
         options: MapOptions(
           initialCenter: _regionCoords[_regionCode(_selectedRegion)] ?? const LatLng(20, 0),
           initialZoom: _zoom(_selectedRegion),
+          onTap: (_, __) => setState(() {}),
         ),
         children: [
           TileLayer(
@@ -138,16 +344,44 @@ class _MapScreenState extends State<MapScreen> {
             additionalOptions: const {},
             userAgentPackageName: 'com.prophet.app',
           ),
+          CircleLayer(
+            circles: _buildHeatmapCircles(),
+          ),
           MarkerLayer(markers: _buildMarkers()),
         ],
       ),
     );
   }
 
+  List<CircleMarker> _buildHeatmapCircles() {
+    final data = [
+      {'code': 'SAM', 'count': 18},
+      {'code': 'NAM', 'count': 12},
+      {'code': 'EUR', 'count': 8},
+      {'code': 'ASI', 'count': 6},
+      {'code': 'MID', 'count': 4},
+      {'code': 'GLB', 'count': 5},
+    ];
+    return data.map((e) {
+      final code = e['code'] as String;
+      final count = e['count'] as int;
+      final opacity = (count / 20.0).clamp(0.15, 0.55);
+      final radius = (count * 3.0).clamp(30.0, 90.0);
+      final color = _regionColor(code);
+      return CircleMarker(
+        point: _regionCoords[code] ?? const LatLng(0, 0),
+        radius: radius,
+        color: color.withValues(alpha: opacity * 0.35),
+        borderColor: color.withValues(alpha: opacity * 0.8),
+        borderStrokeWidth: 1.5,
+      );
+    }).toList();
+  }
+
   List<Marker> _buildMarkers() {
     final regions = _selectedRegion == 'Todos'
-        ? _regions!.where((r) => r.parentId == null).toList()
-        : _regions!.where((r) => r.name == _selectedRegion).toList();
+        ? (_regions ?? []).where((r) => r.parentId == null).toList()
+        : (_regions ?? []).where((r) => r.name == _selectedRegion).toList();
 
     return regions
         .where((r) => _regionCoords.containsKey(r.code))
@@ -155,59 +389,237 @@ class _MapScreenState extends State<MapScreen> {
           final coords = _regionCoords[r.code]!;
           return Marker(
             point: coords,
-            width: 90,
-            height: 44,
+            width: 100,
+            height: 50,
             child: GestureDetector(
-              onTap: () => _selectRegion(r),
+              onTap: () => _onMarkerTap(r),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
-                  color: _markerBg(r.code).withValues(alpha: 0.9),
+                  color: _regionColor(r.code).withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.white30),
+                  boxShadow: [BoxShadow(
+                    color: _regionColor(r.code).withValues(alpha: 0.4),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  )],
                 ),
-                child: Text(r.name, style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
-                )),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(r.name, style: const TextStyle(
+                      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
+                    )),
+                    Text(_regionArticleCount(r.code), style: const TextStyle(
+                      color: Colors.white70, fontSize: 9,
+                    )),
+                  ],
+                ),
               ),
             ),
           );
         }).toList();
   }
 
-  void _selectRegion(Region r) {
+  String _regionArticleCount(String code) {
+    final counts = {'SAM': '18 notícias', 'NAM': '12 notícias', 'EUR': '8 notícias', 'ASI': '6 notícias', 'MID': '4 notícias', 'GLB': '40+ notícias'};
+    return counts[code] ?? '';
+  }
+
+  void _onMarkerTap(Region r) {
     setState(() => _selectedRegion = r.name);
     final coords = _regionCoords[r.code];
     if (coords != null) _mapController.move(coords, _zoom(r.name));
   }
 
-  String _regionCode(String name) {
-    const map = {
-      '🌍 Global': 'GLB', '🌎 América do Sul': 'SAM', '🇧🇷 Brasil': 'BRA',
-      '🌐 América do Norte': 'NAM', '🇺🇸 Estados Unidos': 'USA',
-      '🌍 Europa': 'EUR', '🌏 Ásia': 'ASI', '🟡 Oriente Médio': 'MID',
+  Widget _buildRegionInfo() {
+    final regionStories = _regionStoriesForCode(_regionCode(_selectedRegion));
+    if (regionStories.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(_selectedRegion, style: const TextStyle(
+                color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+              )),
+              const Spacer(),
+              Text('${regionStories.length} stories', style: const TextStyle(
+                color: AppTheme.textoSec, fontSize: 11,
+              )),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 60,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: regionStories.length.clamp(0, 5),
+              itemBuilder: (ctx, i) {
+                final s = regionStories[i];
+                return Container(
+                  width: 160,
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.title, style: const TextStyle(
+                        color: AppTheme.texto, fontSize: 10, fontWeight: FontWeight.w500,
+                      ), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Text('${s.hotness}', style: const TextStyle(
+                            color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.bold,
+                          )),
+                          const SizedBox(width: 4),
+                          Text(_cycleEmoji(s.cycle), style: const TextStyle(fontSize: 10)),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Story> _regionStoriesForCode(String code) {
+    if (_stories == null) return [];
+    const regionMap = {
+      'SAM': ['Brasil', 'Argentina', 'América do Sul'],
+      'NAM': ['Estados Unidos', 'Canadá', 'América do Norte'],
+      'EUR': ['Europa', 'UE', 'Reino Unido'],
+      'ASI': ['China', 'Japão', 'Ásia'],
+      'MID': ['Oriente Médio', 'Iraque', 'Israel'],
+      'BRA': ['Brasil'],
+      'USA': ['Estados Unidos'],
+      'GLB': [],
     };
-    return map[name] ?? 'GLB';
+    final keywords = regionMap[code] ?? [];
+    return _stories!.where((s) {
+      if (keywords.isEmpty) return true;
+      return keywords.any((k) => s.title.toLowerCase().contains(k.toLowerCase()));
+    }).toList();
   }
 
-  double _zoom(String name) {
-    if (name == '🌍 Global') return 1.5;
-    if (name == '🇧🇷 Brasil' || name == '🇺🇸 Estados Unidos') return 4;
-    if (name.contains('América')) return 3;
-    return 2;
+  String _cycleEmoji(String cycle) {
+    const map = {'conflito': '⚔️', 'economico': '📊', 'politico': '🏛️', 'social': '👥', 'tecnologico': '⚡', 'ambiental': '🌱', 'cultural': '🎭'};
+    return map[cycle] ?? '📰';
   }
 
-  Color _markerBg(String code) {
-    switch (code) {
-      case 'SAM': return Colors.orange;
-      case 'EUR': return Colors.blue;
-      case 'MID': return Colors.red;
-      case 'ASI': return Colors.purple;
-      case 'NAM': return Colors.teal;
-      case 'BRA': return Colors.green;
-      case 'GLB': return AppTheme.primary;
-      default: return AppTheme.primary;
-    }
+  Widget _buildPredictionsTab() {
+    final predictions = _mockPredictions();
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: predictions.length,
+      itemBuilder: (ctx, i) {
+        final p = predictions[i];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: (p['positive'] == true ? Colors.green : Colors.orange).withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text('${p['probability']}%', style: const TextStyle(
+                    color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
+                  )),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(p['title'] ?? '', style: const TextStyle(
+                      color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500,
+                    )),
+                    const SizedBox(height: 4),
+                    Text(p['pattern'] ?? '', style: const TextStyle(
+                      color: AppTheme.textoSec, fontSize: 11,
+                    )),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(p['delta'] ?? '', style: TextStyle(
+                          color: p['positive'] == true ? Colors.green : Colors.orange,
+                          fontSize: 11, fontWeight: FontWeight.w600,
+                        )),
+                        const SizedBox(width: 8),
+                        Text('⏱ ${p['horizonDays']} dias', style: const TextStyle(
+                          color: AppTheme.textoSec, fontSize: 10,
+                        )),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _cycleColor(p['cycle']).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(_cycleLabel(p['cycle']), style: TextStyle(
+                  color: _cycleColor(p['cycle']), fontSize: 10, fontWeight: FontWeight.w600,
+                )),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Color _cycleColor(String cycle) {
+    const colors = {
+      'conflito': Colors.red,
+      'economico': Colors.amber,
+      'politico': Colors.blue,
+      'social': Colors.green,
+      'tecnologico': Colors.purple,
+      'ambiental': Colors.teal,
+      'cultural': Colors.orange,
+    };
+    return colors[cycle] ?? AppTheme.textoSec;
+  }
+
+  List<dynamic> _mockPredictions() {
+    return [
+      {'title': 'Conflito armado — Oriente Médio', 'cycle': 'conflito', 'probability': 78, 'delta': '+13%', 'positive': false, 'pattern': '"Escalada → Conflito" Etapa 3/4', 'horizonDays': 90},
+      {'title': 'Crise econômica — Argentina', 'cycle': 'economico', 'probability': 62, 'delta': '+5%', 'positive': false, 'pattern': '"Resgate FMI → Estabilização parcial"', 'horizonDays': 180},
+      {'title': 'Mudança de governo — Hungria', 'cycle': 'politico', 'probability': 85, 'delta': '-8%', 'positive': true, 'pattern': 'Resultado: ✅ CORRETO', 'horizonDays': 365},
+      {'title': 'Avanço viral — IA generativa', 'cycle': 'tecnologico', 'probability': 91, 'delta': '+22%', 'positive': true, 'pattern': '"Adoção acelerada → Onda de conteúdo"', 'horizonDays': 30},
+      {'title': 'Onda de calor — Europa', 'cycle': 'ambiental', 'probability': 73, 'delta': '+8%', 'positive': false, 'pattern': '"La Niña → Amplitude térmica"', 'horizonDays': 60},
+    ];
   }
 
   Widget _buildRegionSelector() {
@@ -286,33 +698,24 @@ class _MapScreenState extends State<MapScreen> {
       case 'NAM': return Colors.teal;
       case 'BRA': return Colors.green;
       case 'GLB': return AppTheme.primary;
-      default: return AppTheme.textoSec;
+      default: return AppTheme.primary;
     }
   }
 
-  List<CircleMarker> _buildHeatmapCircles() {
-    final data = [
-      {'code': 'SAM', 'count': 18},
-      {'code': 'NAM', 'count': 12},
-      {'code': 'EUR', 'count': 8},
-      {'code': 'ASI', 'count': 6},
-      {'code': 'MID', 'count': 4},
-      {'code': 'GLB', 'count': 5},
-    ];
-    return data.map((e) {
-      final code = e['code'] as String;
-      final count = e['count'] as int;
-      final opacity = (count / 20.0).clamp(0.1, 0.6);
-      final radius = (count * 3.0).clamp(25.0, 80.0);
-      final color = _regionColor(code);
-      return CircleMarker(
-        point: _regionCoords[code] ?? LatLng(0, 0),
-        radius: radius,
-        color: color.withValues(alpha: opacity * 0.35),
-        borderColor: color.withValues(alpha: opacity),
-        borderStrokeWidth: 1.5,
-      );
-    }).toList();
+  String _regionCode(String name) {
+    const map = {
+      '🌍 Global': 'GLB', '🌎 América do Sul': 'SAM', '🇧🇷 Brasil': 'BRA',
+      '🌐 América do Norte': 'NAM', '🇺🇸 Estados Unidos': 'USA',
+      '🌍 Europa': 'EUR', '🌏 Ásia': 'ASI', '🟡 Oriente Médio': 'MID',
+    };
+    return map[name] ?? 'GLB';
+  }
+
+  double _zoom(String name) {
+    if (name == '🌍 Global') return 1.5;
+    if (name == '🇧🇷 Brasil' || name == '🇺🇸 Estados Unidos') return 4;
+    if (name.contains('América')) return 3;
+    return 2;
   }
 
   String _flag(String code) {
@@ -327,4 +730,24 @@ class _MapScreenState extends State<MapScreen> {
       default: return '🌐';
     }
   }
+}
+
+// Mock Region model
+class Region {
+  final String id, name, code;
+  final String? parentId;
+  Region({required this.id, required this.name, required this.code, this.parentId});
+}
+
+// Mock Story model
+class Story {
+  final String id, title, sourceName, cycle;
+  final String? summary;
+  final int hotness;
+  Story({required this.id, required this.title, required this.sourceName, required this.cycle, this.summary, required this.hotness});
+}
+
+// Mock Service
+class MockService {
+  static List<Story> getStories() => [];
 }

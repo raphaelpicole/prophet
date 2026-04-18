@@ -57,64 +57,73 @@ class _ProphetScreenState extends State<ProphetScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-            : RefreshIndicator(
-                onRefresh: _loadPredictions,
-                color: AppTheme.primary,
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(children: [
-                        const Text('🔮 Profeta', style: TextStyle(color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold)),
-                        const Spacer(),
-                        IconButton(icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20), onPressed: _loadPredictions),
-                      ]),
-                    )),
-                    SliverToBoxAdapter(child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Row(children: [
-                          Icon(Icons.emoji_events, color: AppTheme.warning, size: 20),
-                          SizedBox(width: 8),
-                          Text('🏆 Track Record', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
-                        ]),
-                        const SizedBox(height: 12),
-                        Row(children: [
-                          _stat('142', 'previsões'),
-                          const SizedBox(width: 24),
-                          _stat('63%', 'corretas'),
-                          const SizedBox(width: 24),
-                          _stat('0.21', 'Brier'),
-                        ]),
-                      ]),
-                    )),
-                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                    SliverToBoxAdapter(child: SizedBox(
-                      height: 38,
-                      child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: _cycles.map((c) => _cycleChip(c)).toList()),
-                    )),
-                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                    SliverToBoxAdapter(child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(children: [
-                        const Text('⚠️ Previsões Ativas', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
-                        const Spacer(),
-                        Text('${_predictions.length} active', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
-                      ]),
-                    )),
-                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverList(delegate: SliverChildBuilderDelegate(
-                        (context, i) => _predictionCard(_predictions[i]), childCount: _predictions.length)),
+            : _predictions.isEmpty
+                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.warning_amber, color: AppTheme.textoSec, size: 48),
+                    const SizedBox(height: 12),
+                    const Text('Sem dados disponíveis', style: TextStyle(color: AppTheme.textoSec, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _loadPredictions, style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                      child: const Text('Tentar novamente', style: TextStyle(fontSize: 13))),
+                  ]))
+                : RefreshIndicator(
+                    onRefresh: _loadPredictions,
+                    color: AppTheme.primary,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(children: [
+                            const Text('🔮 Profeta', style: TextStyle(color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            IconButton(icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20), onPressed: _loadPredictions),
+                          ]),
+                        )),
+                        SliverToBoxAdapter(child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Row(children: [
+                              Icon(Icons.emoji_events, color: AppTheme.warning, size: 20),
+                              SizedBox(width: 8),
+                              Text('🏆 Track Record', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
+                            ]),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              _stat('142', 'previsões'),
+                              const SizedBox(width: 24),
+                              _stat('63%', 'corretas'),
+                              const SizedBox(width: 24),
+                              _stat('0.21', 'Brier'),
+                            ]),
+                          ]),
+                        )),
+                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                        SliverToBoxAdapter(child: SizedBox(
+                          height: 38,
+                          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
+                            children: _cycles.map((c) => _cycleChip(c)).toList()),
+                        )),
+                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                        SliverToBoxAdapter(child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(children: [
+                            const Text('⚠️ Previsões Ativas', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
+                            const Spacer(),
+                            Text('${_predictions.length} active', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+                          ]),
+                        )),
+                        const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList(delegate: SliverChildBuilderDelegate(
+                            (context, i) => _predictionCard(_predictions[i]), childCount: _predictions.length)),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                      ],
                     ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                  ],
-                ),
-              ),
+                  ),
       ),
     );
   }

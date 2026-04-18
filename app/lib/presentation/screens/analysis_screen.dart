@@ -143,7 +143,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                           crossAxisCount: 2,
                           mainAxisSpacing: 10,
                           crossAxisSpacing: 10,
-                          childAspectRatio: 1.6,
+                          childAspectRatio: 1.5,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, i) => _sourceCard(_sources![i]),
@@ -218,6 +218,33 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   Widget _sourceCard(Source s) {
+    // Calcula badges baseado em métricas
+    final badges = <Widget>[];
+    
+    // Badge de alta atividade
+    if (s.articles24h >= 20) {
+      badges.add(_badge('🔥 Hot', const Color(0xFFFF5722)));
+    } else if (s.articles24h >= 15) {
+      badges.add(_badge('📈 Ativo', const Color(0xFFFF9800)));
+    }
+    
+    // Badge de análise
+    final analysisRate = s.totalArticles > 0 
+        ? (s.analyzedCount / s.totalArticles * 100).round() 
+        : 0;
+    if (analysisRate >= 80) {
+      badges.add(_badge('✅ Analisado', const Color(0xFF4CAF50)));
+    } else if (analysisRate >= 50) {
+      badges.add(_badge('🔄 Parcial', const Color(0xFF2196F3)));
+    }
+    
+    // Badge de fiabilidade (poucos erros)
+    if (s.failedCount == 0) {
+      badges.add(_badge('💚 0 erros', const Color(0xFF4CAF50)));
+    } else if (s.failedCount <= 3) {
+      badges.add(_badge('⚠️ ${s.failedCount} erros', const Color(0xFFFF9800)));
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -226,14 +253,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Badges na parte superior
+          if (badges.isNotEmpty)
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: badges,
+            ),
+          if (badges.isNotEmpty) const SizedBox(height: 8),
+          
+          // Nome e ideologia
           Text(s.name, style: const TextStyle(
             color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
           )),
           Text(_ideologyLabel(s.ideology), style: TextStyle(
-            color: _biasColor(s.ideology), fontSize: 11,
+            color: _biasColor(s.ideology), fontSize: 10,
           )),
+          
+          const Spacer(),
+          
+          // Métricas
           Row(
             children: [
               Text('${s.articles24h}', style: const TextStyle(
@@ -241,11 +281,47 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               )),
               const SizedBox(width: 4),
               const Text('art/24h', style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+              const Spacer(),
+              Text('${s.analyzedCount}/${s.totalArticles}', style: const TextStyle(
+                color: AppTheme.textoSec, fontSize: 10,
+              )),
             ],
+          ),
+          
+          // Barra de progresso de análise
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: s.totalArticles > 0 ? s.analyzedCount / s.totalArticles : 0,
+              backgroundColor: AppTheme.surface,
+              valueColor: AlwaysStoppedAnimation<Color>(_analysisColor(analysisRate)),
+              minHeight: 4,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _badge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+      ),
+      child: Text(text, style: TextStyle(
+        color: color, fontSize: 9, fontWeight: FontWeight.w600,
+      )),
+    );
+  }
+
+  Color _analysisColor(int rate) {
+    if (rate >= 80) return const Color(0xFF4CAF50);
+    if (rate >= 50) return const Color(0xFF2196F3);
+    return const Color(0xFFFF9800);
   }
 
   Color _biasColor(String ideology) {

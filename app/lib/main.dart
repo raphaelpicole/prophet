@@ -6,6 +6,7 @@ import 'presentation/screens/prophet_screen.dart';
 import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/config_screen.dart';
 import 'presentation/screens/story_detail_screen.dart';
+import 'presentation/screens/article_detail_screen.dart';
 import 'data/models/story.dart';
 
 void main() {
@@ -27,6 +28,12 @@ class ProphetApp extends StatelessWidget {
           final story = settings.arguments as Story;
           return MaterialPageRoute(
             builder: (_) => StoryDetailScreen(story: story),
+          );
+        }
+        if (settings.name == '/article') {
+          final story = settings.arguments as Story;
+          return MaterialPageRoute(
+            builder: (_) => ArticleDetailScreen(story: story),
           );
         }
         return MaterialPageRoute(
