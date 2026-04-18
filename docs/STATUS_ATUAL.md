@@ -39,8 +39,15 @@
 
 ### Groq API (Análise LLM)
 - **Problema:** "Organization has been restricted. Please reach out to support if you believe this was in error."
-- **Impacto:** Análise usa mock em vez de LLM real
-- **Solução:** Aktivieren ou usar outro provedor (OpenAI, GLM, Claude)
+- **Impacto:** Mock analyzer usado como fallback
+- **Solução:** Resolvido com Ollama Cloud (gemma4:31b) — veja abaixo
+
+### 🤖 Ollama Cloud (ATIVO)
+- **API Key:** configurada (testada com sucesso)
+- **Modelo:** `gemma4:31b` (31B params, rápido, bom para texto)
+- **Controle:** 1 request por vez + 1.5s delay + 60s timeout
+- **Teste:** 2/3 artigos analisados (~4-5s cada)
+- **Alternativas testadas:** glm-4.7, kimi-k2, mistral-large-3:675b (muito pesadas)
 
 ### Fontes que quebram
 - **Folha de S.Paulo:** HTTP 404 no RSS
