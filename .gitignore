@@ -1,1 +1,62 @@
-.vercel
+# =============================================
+# Prophet — .gitignore
+# =============================================
+
+# --- Node.js / Server ---
+node_modules/
+server/node_modules/
+server/dist/
+dist/
+*.tsbuildinfo
+
+# --- Environment & Secrets ---
+.env
+.env.*
+.env.local
+.env.production
+*.pem
+*.key
+secrets/
+credentials/
+
+# --- Flutter / App ---
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/pubspec.lock
+
+# --- Vercel & Deploy ---
+.vercel/
+.now/
+out/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Testes / Coverage ---
+coverage/
+.nyc_output/
+
+# --- Temp ---
+tmp/
+temp/
+*.tmp
+
+# --- Supabase local (se usar) ---
+supabase/.branches/
+supabase/config.toml
