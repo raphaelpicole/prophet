@@ -6,6 +6,16 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
+async function logError(level, source, message, context) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ level, source, message, context }),
+    });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -24,6 +34,7 @@ export default async function handler(req, res) {
     if (!r.ok) return res.status(r.status).json({ error: data.message });
     return res.status(200).json({ stories: data, pagination: { limit: parseInt(limit), offset: parseInt(offset) } });
   } catch (e) {
+    await logError('error', 'api-stories', e.message, { query: req.query });
     return res.status(500).json({ error: e.message });
   }
 }

@@ -17,7 +17,19 @@ const MOCK_REGIONS = [
   { id: '8', name: '🟡 Oriente Médio', code: 'MID', parent_id: null },
 ];
 
+
+async function logError(level, source, message, context) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ level, source, message, context }),
+    });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
+  try {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -26,5 +38,9 @@ export default async function handler(req, res) {
   const children = MOCK_REGIONS.filter(r => r.parent_id);
   const tree = roots.map(r => ({ ...r, children: children.filter(c => c.parent_id === r.id) }));
 
-  return res.status(200).json({ regions: MOCK_REGIONS, tree });
+    return res.status(200).json({ regions: MOCK_REGIONS, tree });
+  } catch (e) {
+    await logError('error', 'api-regions', e.message, {});
+    return res.status(500).json({ error: e.message });
+  }
 }

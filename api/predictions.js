@@ -6,6 +6,17 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
+
+async function logError(level, source, message, context) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ level, source, message, context }),
+    });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -43,7 +54,7 @@ export default async function handler(req, res) {
         resolved,
       },
     });
-  } catch (e) {
+  } catch (e) { await logError("error", "api-predictions", e.message, {endpoint: "predictions"}); 
     return res.status(500).json({ error: e.message });
   }
 }

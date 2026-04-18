@@ -9,6 +9,17 @@ const headers = {
  * GET /api/indicators — dashboard stats
  * Retorna agregações: total stories, artigos hoje, contagem por ciclo, hot stories
  */
+
+async function logError(level, source, message, context) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({ level, source, message, context }),
+    });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
