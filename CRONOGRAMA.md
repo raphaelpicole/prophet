@@ -47,12 +47,21 @@
 ## 📋 Fase 5 — Melhorias
 - [x] **Filtro por região** no RadarScreen → chips com região + cor
 - [x] **PWA** — manifest.json + iOS meta tags (add to home screen)
-- [ ] **Story timeline** — gráfico de evolução temporal (sentiment trend)
-- [ ] **Mapa heatmap** — densidade de histórias por região
-- [ ] **Track record real** — tabela `predictions` + histórico
-- [ ] **Twitter/X share** — botão de partilhar stories
+- [x] **Story timeline** — gráfico de evolução temporal com fl_chart
+- [x] **Mapa heatmap** — CircleLayer com densidade de histórias por região
+- [x] **Track record real** — predictions table + API real
+- [x] **Twitter/X share** — botão partilhar story (url_launcher)
+- [x] **Responsivo** — side nav em desktop (>800px), bottom nav em mobile
 - [ ] **Docker local** — collect sem Vercel
 - [ ] **Push notifications** — web push
+
+---
+
+### 🎯 Agora executa no Supabase (SQL Editor) para ativar predictions real:
+```sql
+-- Clica em: Settings → SQL Editor → cola o conteúdo de supabase/migrations/003_predictions.sql
+-- Ou executa direto este bloco acima
+```
 
 ---
 
