@@ -1,6 +1,6 @@
 class ApiConstants {
   // Backend Vercel (produção)
-  static const String baseUrl = 'https://prophet-olive.vercel.app/api';
+  static const String baseUrl = 'https://prophet-ny7j4ztfs-raphaelpicoles-projects.vercel.app/api';
 }
 
 class AppConstants {
