@@ -67,4 +67,14 @@ class ApiService {
     if (res.statusCode != 200) throw Exception('Failed to load story detail');
     return json.decode(res.body);
   }
+
+  Future<List<dynamic>> getPredictions({String? cycle}) async {
+    final params = <String, String>{};
+    if (cycle != null) params['cycle'] = cycle;
+    final uri = Uri.parse('${ApiConstants.baseUrl}/predictions').replace(queryParameters: params);
+    final res = await _client.get(uri);
+    if (res.statusCode != 200) throw Exception('Failed to load predictions');
+    final data = json.decode(res.body);
+    return data['predictions'] as List<dynamic>;
+  }
 }
