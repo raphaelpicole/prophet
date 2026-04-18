@@ -1,10 +1,13 @@
 const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeXllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
 const headers = {
   'apikey': SUPABASE_KEY,
   'Authorization': `Bearer ${SUPABASE_KEY}`,
   'Content-Type': 'application/json',
 };
+
+const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
+const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
 
 const RSS_SOURCES = [
   { slug: 'g1', name: 'G1', feed: 'https://g1.globo.com/rss/g1/brasil/', sourceId: null },
@@ -15,6 +18,23 @@ const RSS_SOURCES = [
   { slug: 'bbc', name: 'BBC Brasil', feed: 'https://www.bbc.com/portuguese/feed/rss.xml', sourceId: null },
   { slug: 'metropoles', name: 'Metropoles', feed: 'https://www.metropoles.com/arqs/rss.xml', sourceId: null },
 ];
+
+const SYSTEM_PROMPT = `Você é um analisador de notícias do sistema Prophet. Analise o título e conteúdo e retorne APENAS um objeto JSON válido.
+
+REGRAS:
+1. Responda SEMPRE em português do Brasil
+2. Retorne APENAS o JSON, sem markdown, sem explicações extras
+3. Seja objetivo e imparcial na análise
+
+Campos obrigatórios:
+- summary: resumo em 1-2 frases (máximo 200 caracteres)
+- main_subject: assunto principal em 3-5 palavras
+- cycle: um de [conflito, pandemia, economico, politico, social, tecnologico, ambiental, cultural]
+- political_bias: um de [esquerda, centro-esquerda, centro, centro-direita, direita, indefinido]
+- sentiment: um de [positivo, neutro, negativo]
+- confidence: número entre 0 e 1
+
+Responda apenas com JSON válido.`;
 
 function hash(str) {
   let h = 0x811c9dc5;
@@ -61,7 +81,53 @@ async function fetchFeed(source) {
   }
 }
 
-// Log error to Supabase logs table
+async function analyzeWithOllama(title, content) {
+  if (!OLLAMA_API_KEY) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://ollama.com/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OLLAMA_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 500)}` }
+        ],
+        format: 'json',
+        options: {
+          temperature: 0.3,
+          num_predict: 350,
+        },
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Ollama API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const content_str = data.message?.content || '{}';
+    
+    try {
+      return JSON.parse(content_str);
+    } catch {
+      console.error('Failed to parse Ollama response:', content_str);
+      return null;
+    }
+  } catch (e) {
+    console.error('Ollama request failed:', e.message);
+    return null;
+  }
+}
+
 async function logError(level, source, message, context) {
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
@@ -105,7 +171,6 @@ export default async function handler(req, res) {
     // 3. Dedup + insert em lote
     log.push('🔍 Deduplicando...');
 
-    // Mapeia slug → id do banco
     const slugToId = {};
     if (Array.isArray(sources)) {
       for (const s of sources) {
@@ -128,7 +193,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Insert um por um (suporta onConflict dedup)
     let insertedCount = 0;
     for (const article of toInsert) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
@@ -140,9 +204,60 @@ export default async function handler(req, res) {
     }
     log.push(`   ✅ Inseridos: ${insertedCount} artigos`);
 
-    // 4. Análise mock (pendente — LLM precisa de API key real)
-    log.push('🧠 Análise LLM: pulando (API key não configurada)');
-    log.push('   → Configure LLM_API_KEY no Vercel env vars para ativar');
+    // 4. Análise LLM com Ollama Cloud
+    if (OLLAMA_API_KEY) {
+      log.push('🧠 Analisando artigos pendentes com Ollama Cloud...');
+      
+      // Busca artigos pendentes (máx 20 por execução)
+      const pendingRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&analysis=is.null&select=id,title,content,url&limit=20&order=published_at.desc`,
+        { headers }
+      );
+      const pending = await pendingRes.json();
+      
+      if (Array.isArray(pending) && pending.length > 0) {
+        log.push(`   Artigos para analisar: ${pending.length}`);
+        
+        let analyzedCount = 0;
+        for (const article of pending) {
+          const analysis = await analyzeWithOllama(article.title, article.content);
+          
+          if (analysis) {
+            // Atualiza artigo com análise
+            const updateRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`,
+              {
+                method: 'PATCH',
+                headers: { ...headers, Prefer: 'return=representation' },
+                body: JSON.stringify({
+                  status: 'analyzed',
+                  analysis: analysis,
+                  main_subject: analysis.main_subject || null,
+                  cycle: analysis.cycle || null,
+                  summary: analysis.summary || null,
+                  political_bias: analysis.political_bias || null,
+                  sentiment: analysis.sentiment || null,
+                  confidence: analysis.confidence || null,
+                }),
+              }
+            );
+            
+            if (updateRes.ok) analyzedCount++;
+            
+            // Delay entre requests (1.5s)
+            await new Promise(r => setTimeout(r, 1500));
+          } else {
+            log.push(`   ⚠️ Falha na análise: ${article.title.slice(0, 50)}...`);
+          }
+        }
+        
+        log.push(`   ✅ Analisados: ${analyzedCount} artigos`);
+      } else {
+        log.push('   Nenhum artigo pendente para analisar');
+      }
+    } else {
+      log.push('🧠 Ollama API key não configurada — análise desabilitada');
+    }
 
     // 5. Count final
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }).then(r => r.json()).catch(() => []);

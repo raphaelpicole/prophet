@@ -26,16 +26,17 @@
 
 ## ✅ Fase 3 — Frontend Flutter (18/abr)
 - [x] Flutter Web app com tema dark
-- [x] **RadarScreen** — stories com busca + filtros de ciclo
-- [x] **StoryDetailScreen** — artigos reais via API
+- [x] **RadarScreen** — stories com busca + filtros de ciclo + região
+- [x] **StoryDetailScreen** — artigos reais via API + sentiment timeline chart
 - [x] **AnalysisScreen** — viés por fonte + grid
-- [x] **MapScreen** — Mapbox dark, marcadores por região
-- [x] **ProphetScreen** — previsões com filtros por ciclo
-- [x] Bottom navigation + routing
+- [x] **MapScreen** — Mapbox dark, marcadores por região + heatmap circles
+- [x] **ProphetScreen** — previsões com filtros por ciclo + track record real
+- [x] **ConfigScreen** — monitoramento de logs em tempo real
+- [x] Bottom navigation + routing + responsive layout (side nav desktop)
 
 ---
 
-## 🔄 Fase 4 — Pipeline LLM (parcialmente completo)
+## ✅ Fase 4 — Pipeline LLM (parcialmente completo)
 - [x] `/api/cron/collect` — RSS → Supabase com dedup real
 - [x] `stories` table populada + grouping (parcial)
 - [x] `regions` e `v_source_stats` criados no banco real
@@ -44,24 +45,17 @@
 
 ---
 
-## 📋 Fase 5 — Melhorias
+## ✅ Fase 5 — Melhorias (18/abr à tarde)
 - [x] **Filtro por região** no RadarScreen → chips com região + cor
 - [x] **PWA** — manifest.json + iOS meta tags (add to home screen)
 - [x] **Story timeline** — gráfico de evolução temporal com fl_chart
 - [x] **Mapa heatmap** — CircleLayer com densidade de histórias por região
-- [x] **Track record real** — predictions table + API real
+- [x] **Track record real** — predictions table + API real (8 previsões, 71% accuracy)
 - [x] **Twitter/X share** — botão partilhar story (url_launcher)
 - [x] **Responsivo** — side nav em desktop (>800px), bottom nav em mobile
+- [x] **Monitorização** — logs table + logError em todos os endpoints + ConfigScreen
 - [ ] **Docker local** — collect sem Vercel
 - [ ] **Push notifications** — web push
-
----
-
-### 🎯 Agora executa no Supabase (SQL Editor) para ativar predictions real:
-```sql
--- Clica em: Settings → SQL Editor → cola o conteúdo de supabase/migrations/003_predictions.sql
--- Ou executa direto este bloco acima
-```
 
 ---
 
@@ -72,28 +66,41 @@ Flutter Web (app/)
   └─ ApiService → https://prophet-olive.vercel.app/api
 
 Vercel (serverless functions)
-  └─ api/stories.js     → Supabase stories
-  └─ api/story.js       → Supabase articles
-  └─ api/sources.js     → Supabase sources
+  └─ api/stories.js     → Supabase stories (com filtro region)
+  └─ api/story.js       → Supabase articles (via story_articles junction)
+  └─ api/sources.js     → Supabase sources (v_source_stats view)
   └─ api/regions.js     → mock regions
-  └─ api/predictions.js → mock predictions
-  └─ api/indicators.js → agregações Supabase
+  └─ api/predictions.js → predictions table (track record real)
+  └─ api/indicators.js  → agregações Supabase
+  └─ api/logs.js        → logs table (monitorização)
   └─ api/cron/collect.js → RSS → Supabase pipeline
 
 Supabase (banco)
-  └─ raw_articles (✔ 263+ artigos)
+  └─ raw_articles (✔ 283+ artigos)
+  └─ story_articles (✔ junction table)
   └─ sources (✔ 10 fontes ativas)
-  └─ stories (✔ 20 stories agrupadas)
+  └─ stories (✔ 20 stories com region + cycle)
   └─ regions (✔ 8 regiões seed)
   └─ v_source_stats (✔ view com stats reais)
+  └─ predictions (✔ 8 previsões, 71% accuracy, Brier 0.21)
+  └─ logs (✔ monitoramento de erros)
   └─ analysis (⚠ pendente — LLM pipeline)
-  └─ predictions (⚠ mock — forecasting)
 ```
 
 ---
 
 ## 🔑 Notas Importantes
-- **Token Mapbox**: commitado (reconhecido pelo GitHub secret scanning — Rapha approve manualmente)
+- **Production URL**: https://prophet-olive.vercel.app
+- **Token Mapbox**: commitado (client-safe, pk.eyJ1...)
 - **SUPABASE_KEY**: hardcoded nos API files (viaja no build)
-- **OLLAMA_CLOUD_MODEL**: `gemma4:31b` para análise LLM
-- **Collect cron**: agendado externamente via `/api/cron/collect`
+- **RLS**: tabelas predictions e logs têm policies para anon insert/read
+- **Monitorização**: todos os endpoints têm logError() que regista no banco
+- **Filtro região**: stories.region populada com 'SAM' (América do Sul)
+
+---
+
+## 📋 Backlog
+- Docker local para collect (sem Vercel)
+- Push notifications (web push)
+- LLM analysis pipeline (necessita `LLM_API_KEY` no Vercel env vars)
+- Story grouping automático via grouper.ts
