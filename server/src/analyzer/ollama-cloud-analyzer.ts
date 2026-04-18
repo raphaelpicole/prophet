@@ -16,16 +16,55 @@
 
 import type { AnalysisResult, ArticleToAnalyze } from './types.js';
 
+/**
+ * Semaphore simples para controlar concorrência.
+ * Apenas 1 request por vez + delay de 2s entre cada um.
+ * Isso evita estourar o limite da sessão do Ollama Cloud.
+ */
+class SimpleSemaphore {
+  private queue: Array<() => void> = [];
+  private running = 0;
+
+  async acquire(): Promise<void> {
+    if (this.running < 1) {
+      this.running++;
+      return;
+    }
+    return new Promise(resolve => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) next();
+    } else {
+      this.running--;
+    }
+  }
+}
+
+const ollamaSemaphore = new SimpleSemaphore();
+
 interface OllamaCloudConfig {
   apiKey: string;
   model: string;
   baseURL: string;
+  maxConcurrent: number;
+  delayBetweenMs: number;
+  maxTokens: number;
+  timeoutMs: number;
 }
 
 const DEFAULT_CONFIG: OllamaCloudConfig = {
   apiKey: process.env.OLLAMA_API_KEY || '',
-  model: process.env.OLLAMA_CLOUD_MODEL || 'kimi-k2.5:cloud',
+  model: process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b',
   baseURL: 'https://ollama.com',
+  maxConcurrent: 1,
+  delayBetweenMs: 1500,    // 1.5s entre requests
+  maxTokens: 350,           // respostas curtas
+  timeoutMs: 60000,         // 60s timeout (mais generoso)
 };
 
 const SYSTEM_PROMPT = `Você é um analisador de notícias do sistema Prophet. Analise o título e conteúdo e retorne APENAS um objeto JSON válido.
@@ -90,7 +129,13 @@ CONTEÚDO: ${article.content?.slice(0, 3000) || 'Não disponível'}
 
 Retorne o JSON com a análise:`;
 
+  // Semaphore simples para controlar concorrência
+  await ollamaSemaphore.acquire();
+
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), merged.timeoutMs);
+
     const response = await fetch(`${merged.baseURL}/api/chat`, {
       method: 'POST',
       headers: {
@@ -106,10 +151,13 @@ Retorne o JSON com a análise:`;
         stream: false,
         options: {
           temperature: 0.1,
-          num_predict: 1000,
+          num_predict: merged.maxTokens,
         },
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -140,6 +188,9 @@ Retorne o JSON com a análise:`;
       used_ollama_cloud: false,
       error: error.message,
     };
+  } finally {
+    // Libera semaphore após delay configurado (controla uso da sessão)
+    setTimeout(() => ollamaSemaphore.release(), merged.delayBetweenMs);
   }
 }
 
