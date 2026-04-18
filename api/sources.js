@@ -12,19 +12,44 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // sources ativas com stats de raw_articles
-    const q = `sources?select=id,slug,name,ideology,active,last_fetched_at,fetch_error_count&active=eq.true&order=name`;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${q}`, { headers });
-    const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: data.message });
+    // Tenta view v_source_stats (stats reais); se não existir, fallback p/ sources simples
+    let data = [];
+    let usingStatsView = false;
 
-    const sources = (data || []).map(s => ({
-      ...s,
-      totalArticles: 0,
-      articles24h: 0,
-    }));
+    const viewRes = await fetch(`${SUPABASE_URL}/rest/v1/v_source_stats?select=*&order=total_articles.desc`, { headers });
+    if (viewRes.ok) {
+      data = await viewRes.json();
+      usingStatsView = Array.isArray(data);
+    }
 
-    return res.status(200).json({ sources });
+    if (!usingStatsView) {
+      // Fallback: só fontes básicas
+      const srcRes = await fetch(`${SUPABASE_URL}/rest/v1/sources?select=id,slug,name,ideology,active,last_fetched_at,fetch_error_count&active=eq.true&order=name`, { headers });
+      const srcs = await srcRes.json();
+      data = (Array.isArray(srcs) ? srcs : []).map(s => ({
+        ...s,
+        totalArticles: 0,
+        articles24h: 0,
+        analyzedCount: 0,
+        failedCount: 0,
+      }));
+    } else {
+      // Mapeia campos da view pro formato da API
+      data = data.map(s => ({
+        id: s.id,
+        slug: s.slug,
+        name: s.name,
+        ideology: s.ideology,
+        active: s.active,
+        totalArticles: s.total_articles ?? 0,
+        articles24h: s.articles_24h ?? 0,
+        analyzedCount: s.analyzed_count ?? 0,
+        failedCount: s.failed_count ?? 0,
+        lastFetchedAt: s.last_fetched_at,
+      }));
+    }
+
+    return res.status(200).json({ sources: data });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
