@@ -23,6 +23,8 @@ class _RadarScreenState extends State<RadarScreen> {
   bool _loading = true;
   String? _error;
   String? _selectedCycle;
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   static const _cycles = [
     'conflito', 'economico', 'politico',
@@ -40,7 +42,7 @@ class _RadarScreenState extends State<RadarScreen> {
     
     try {
       final results = await Future.wait([
-        _api.getStories(cycle: _selectedCycle, limit: 20).catchError((_) => <Story>[]),
+        _api.getStories(cycle: _selectedCycle, search: _searchQuery, limit: 20).catchError((_) => <Story>[]),
         _api.getIndicators().catchError((_) => null),
       ]);
 
@@ -63,6 +65,11 @@ class _RadarScreenState extends State<RadarScreen> {
 
   void _setCycle(String? cycle) {
     setState(() { _selectedCycle = cycle; });
+    _loadData();
+  }
+
+  void _doSearch(String query) {
+    setState(() { _searchQuery = query; });
     _loadData();
   }
 
@@ -113,6 +120,38 @@ class _RadarScreenState extends State<RadarScreen> {
                         onPressed: () {},
                       ),
                     ],
+                  ),
+                ),
+
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: AppTheme.texto, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar histórias...',
+                      hintStyle: const TextStyle(color: AppTheme.textoSec),
+                      prefixIcon: const Icon(Icons.search, color: AppTheme.textoSec, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: AppTheme.textoSec, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                _doSearch('');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: AppTheme.card,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onSubmitted: _doSearch,
+                    onChanged: (v) => setState(() { _searchQuery = v; }),
                   ),
                 ),
               ),

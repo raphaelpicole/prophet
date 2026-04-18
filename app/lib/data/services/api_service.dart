@@ -9,6 +9,7 @@ class ApiService {
 
   Future<List<Story>> getStories({
     String? cycle,
+    String? search,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -17,6 +18,7 @@ class ApiService {
       'offset': offset.toString(),
     };
     if (cycle != null) params['cycle'] = cycle;
+    if (search != null && search.isNotEmpty) params['search'] = search;
 
     final uri = Uri.parse('${ApiConstants.baseUrl}/stories')
         .replace(queryParameters: params);
