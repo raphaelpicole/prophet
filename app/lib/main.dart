@@ -58,52 +58,95 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(color: AppTheme.surface, width: 1),
+      body: Row(
+        children: [
+          if (isWide) _buildSideNav(),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: _screens,
+            ),
           ),
+        ],
+      ),
+      bottomNavigationBar: isWide ? null : _buildBottomNav(),
+    );
+  }
+
+  Widget _buildSideNav() {
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined];
+    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.public, Icons.settings];
+    final labels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config'];
+
+    return Container(
+      width: 80,
+      color: AppTheme.surface,
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.visibility, color: AppTheme.primary, size: 28),
+          ),
+          const SizedBox(height: 24),
+          ...List.generate(_screens.length, (i) => _sideNavItem(i, icons, activeIcons, labels)),
+        ],
+      ),
+    );
+  }
+
+  Widget _sideNavItem(int i, List<IconData> icons, List<IconData> activeIcons, List<String> labels) {
+    final isSelected = _currentIndex == i;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = i),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppTheme.bg,
-          selectedItemColor: AppTheme.primary,
-          unselectedItemColor: AppTheme.textoSec,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.radar),
-              activeIcon: Icon(Icons.radar, color: AppTheme.primary),
-              label: 'Radar',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.analytics_outlined),
-              activeIcon: Icon(Icons.analytics, color: AppTheme.primary),
-              label: 'Análise',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome_outlined),
-              activeIcon: Icon(Icons.auto_awesome, color: AppTheme.prophet),
-              label: 'Profeta',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.public_outlined),
-              activeIcon: Icon(Icons.public, color: AppTheme.primary),
-              label: 'Mapa',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings, color: AppTheme.primary),
-              label: 'Config',
-            ),
+        child: Column(
+          children: [
+            Icon(isSelected ? activeIcons[i] : icons[i],
+              color: isSelected ? AppTheme.primary : AppTheme.textoSec, size: 24),
+            const SizedBox(height: 4),
+            Text(labels[i], style: TextStyle(
+              color: isSelected ? AppTheme.primary : AppTheme.textoSec,
+              fontSize: 10, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            )),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppTheme.surface, width: 1)),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: AppTheme.bg,
+        selectedItemColor: AppTheme.primary,
+        unselectedItemColor: AppTheme.textoSec,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.radar), label: 'Radar'),
+          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Análise'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_outlined), label: 'Profeta'),
+          BottomNavigationBarItem(icon: Icon(Icons.public_outlined), label: 'Mapa'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Config'),
+        ],
       ),
     );
   }

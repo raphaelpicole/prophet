@@ -1,22 +1,49 @@
-const MOCK_PREDICTIONS = [
-  { id: '1', title: 'Conflito armado — Oriente Médio', cycle: 'conflito', probability: 78, confidence: 70, horizonDays: 90, delta: '+13%', positive: false, pattern: '"Escalada → Conflito" Etapa 3/4' },
-  { id: '2', title: 'Crise econômica — Argentina', cycle: 'economico', probability: 62, confidence: 65, horizonDays: 180, delta: '+5%', positive: false, pattern: '"Resgate FMI → Estabilização parcial"' },
-  { id: '3', title: 'Mudança de governo — Hungria', cycle: 'politico', probability: 85, confidence: 80, horizonDays: 365, delta: '-8%', positive: true, pattern: 'Resultado: ✅ CORRETO' },
-  { id: '4', title: 'Avanço viral — IA generativa', cycle: 'tecnologico', probability: 91, confidence: 75, horizonDays: 30, delta: '+22%', positive: true, pattern: '"Adoção acelerada → Onda de conteúdo"' },
-  { id: '5', title: 'Onda de calor — Europa', cycle: 'ambiental', probability: 73, confidence: 68, horizonDays: 60, delta: '+8%', positive: false, pattern: '"La Niña → Amplitude térmica"' },
-];
+const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+const headers = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+};
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { cycle } = req.query;
-  let predictions = MOCK_PREDICTIONS;
-  if (cycle) predictions = MOCK_PREDICTIONS.filter(p => p.cycle === cycle);
+  const { cycle, status } = req.query;
 
-  return res.status(200).json({
-    predictions,
-    meta: { total: predictions.length, trackRecord: { total: 142, correct: 89, brier: 0.21 } },
-  });
+  try {
+    // Build query
+    let params = 'select=*&order=created_at.desc';
+    if (cycle) params += `&cycle=eq.${cycle}`;
+
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/predictions?${params}`, { headers });
+    let predictions = await r.json();
+
+    // Filter by pending/resolved if requested
+    if (status === 'pending') predictions = predictions.filter(p => p.outcome === null);
+    else if (status === 'resolved') predictions = predictions.filter(p => p.outcome !== null);
+
+    // Stats
+    const total = predictions.length;
+    const correct = predictions.filter(p => p.outcome === true).length;
+    const resolved = predictions.filter(p => p.outcome !== null).length;
+    const accuracy = resolved > 0 ? Math.round(correct / resolved * 100) : 0;
+    const brier = predictions.filter(p => p.brier_score !== null)
+      .reduce((s, p) => s + p.brier_score, 0) / (predictions.filter(p => p.brier_score !== null).length || 1);
+
+    return res.status(200).json({
+      predictions,
+      stats: {
+        total,
+        correct,
+        accuracy,
+        brierScore: Math.round(brier * 100) / 100,
+        resolved,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
