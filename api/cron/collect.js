@@ -93,10 +93,21 @@ export default async function handler(req, res) {
 
     // 3. Dedup + insert em lote
     log.push('🔍 Deduplicando...');
+
+    // Mapeia slug → id do banco
+    const slugToId = {};
+    if (Array.isArray(sources)) {
+      for (const s of sources) {
+        slugToId[s.slug] = s.id;
+      }
+    }
+
     const toInsert = [];
     for (const item of allItems) {
       const h = hash(item.title + item.url);
+      const sourceId = slugToId[item.sourceSlug] || null;
       toInsert.push({
+        source_id: sourceId,
         title: item.title.slice(0, 500),
         url: item.url,
         content: item.content?.slice(0, 2000) || '',
@@ -106,20 +117,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // Insert
-    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
-      method: 'POST',
-      headers: { ...headers, Prefer: 'representation', 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(toInsert),
-    });
-
-    if (insertRes.ok) {
-      const inserted = await insertRes.json();
-      log.push(`   ✅ Inseridos: ${inserted.length ?? toInsert.length} artigos`);
-    } else {
-      const err = await insertRes.text();
-      log.push(`   ⚠️ Insert batch falhou: ${insertRes.status}`);
+    // Insert um por um (suporta onConflict dedup)
+    let insertedCount = 0;
+    for (const article of toInsert) {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(article),
+      });
+      if (r.ok) insertedCount++;
     }
+    log.push(`   ✅ Inseridos: ${insertedCount} artigos`);
 
     // 4. Análise mock (pendente — LLM precisa de API key real)
     log.push('🧠 Análise LLM: pulando (API key não configurada)');
