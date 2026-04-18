@@ -44,13 +44,13 @@
 
 ---
 
-## 📋 Fase 5 — Melhorias (backlog)
-- [ ] **Filtro por região no RadarScreen** → `GET /api/stories?region=X`
-- [ ] **PWA** — manifest + service worker (add to home screen)
+## 📋 Fase 5 — Melhorias
+- [x] **Filtro por região** no RadarScreen → chips com região + cor
+- [x] **PWA** — manifest.json + iOS meta tags (add to home screen)
 - [ ] **Story timeline** — gráfico de evolução temporal (sentiment trend)
 - [ ] **Mapa heatmap** — densidade de histórias por região
 - [ ] **Track record real** — tabela `predictions` + histórico
-- [ ] **Twitter/X share** — de stories
+- [ ] **Twitter/X share** — botão de partilhar stories
 - [ ] **Docker local** — collect sem Vercel
 - [ ] **Push notifications** — web push
 
