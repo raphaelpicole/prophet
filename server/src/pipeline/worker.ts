@@ -308,9 +308,8 @@ export async function runPipeline(): Promise<PipelineResult> {
 async function groupArticlesIntoStories(): Promise<number> {
   const { data: analyzedArticles } = await supabase
     .from('raw_articles')
-    .select('id, title, summary')
-    .eq('status', 'analyzed')
-    .is('id', 'not.null'); // Simplificação
+    .select('id, title')
+    .eq('status', 'analyzed');
   
   if (!analyzedArticles || analyzedArticles.length === 0) {
     return 0;
