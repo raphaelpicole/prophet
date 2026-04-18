@@ -80,7 +80,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _kpi('🔥', '${widget.story.hotness}', '热度'),
+                  _kpi('🔥', '${widget.story.hotness}', 'Relevância'),
                   _kpi('📰', '${widget.story.articleCount}', 'Artigos'),
                   _kpi('🕐', _timeAgo(widget.story.updatedAt), 'Atualizado'),
                 ],
