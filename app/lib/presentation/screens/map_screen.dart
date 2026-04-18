@@ -4,7 +4,9 @@ import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/constants.dart';
 import '../../data/models/source.dart';
+import '../../data/models/story.dart';
 import '../../data/services/api_service.dart';
+import '../../data/services/mock_service.dart';
 import 'article_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -25,7 +27,7 @@ class _MapScreenState extends State<MapScreen> {
   String _selectedRegion = 'Todos';
   int _selectedTab = 0;
   String _searchQuery = '';
-  List<dynamic> _searchResults = [];
+  List<Story> _searchResults = [];
 
   static const _regionCoords = {
     'GLB': LatLng(20, 0),
@@ -81,7 +83,7 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final results = await _api.getStories(search: query, limit: 10).catchError((_) => <Story>[]);
       if (mounted) setState(() {
-        _searchResults = results.isEmpty ? _mockSearch(query) : results.cast<dynamic>();
+        _searchResults = results.isEmpty ? _mockSearch(query) : results;
         _searching = false;
       });
     } catch (e) {
@@ -92,12 +94,11 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  List<dynamic> _mockSearch(String query) {
+  List<Story> _mockSearch(String query) {
     final q = query.toLowerCase();
     return (_stories ?? [])
         .where((s) => s.title.toLowerCase().contains(q) || (s.summary ?? '').toLowerCase().contains(q))
         .take(5)
-        .map((s) => {'id': s.id, 'title': s.title, 'source': s.sourceName, 'hotness': s.hotness, 'cycle': s.cycle})
         .toList();
   }
 
@@ -150,6 +151,17 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Widget _tabBtn(String label, int tab) {
+    final active = _selectedTab == tab;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTab = tab),
+      child: Text(label, style: TextStyle(
+        color: active ? AppTheme.primary : AppTheme.textoSec,
+        fontSize: 13, fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+      )),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -198,7 +210,6 @@ class _MapScreenState extends State<MapScreen> {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
     }
 
-    // Mostrar resultados da busca
     if (_searchQuery.isNotEmpty || _searchResults.isNotEmpty) {
       return _buildSearchResults();
     }
@@ -245,12 +256,7 @@ class _MapScreenState extends State<MapScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: _searchResults.length,
       itemBuilder: (ctx, i) {
-        final item = _searchResults[i];
-        final title = item is Map ? item['title'] : item.title;
-        final source = item is Map ? item['source'] : item.sourceName;
-        final hotness = item is Map ? item['hotness'] : item.hotness;
-        final cycle = item is Map ? item['cycle'] : item.cycle;
-
+        final story = _searchResults[i];
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
@@ -262,16 +268,16 @@ class _MapScreenState extends State<MapScreen> {
             leading: CircleAvatar(
               backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
               radius: 18,
-              child: Text('${hotness ?? 0}', style: const TextStyle(
+              child: Text('${story.hotness}', style: const TextStyle(
                 color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
               )),
             ),
-            title: Text(title ?? '', style: const TextStyle(
+            title: Text(story.title, style: const TextStyle(
               color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500,
             )),
             subtitle: Row(
               children: [
-                Text(source ?? '', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+                Text(story.mainSubject, style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -279,34 +285,27 @@ class _MapScreenState extends State<MapScreen> {
                     color: AppTheme.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(_cycleLabel(cycle ?? ''), style: const TextStyle(
+                  child: Text(_cycleLabel(story.cycle), style: const TextStyle(
                     color: AppTheme.primary, fontSize: 9, fontWeight: FontWeight.w600,
                   )),
                 ),
               ],
             ),
             trailing: const Icon(Icons.chevron_right, color: AppTheme.textoSec, size: 20),
-            onTap: () => _openArticle(item),
+            onTap: () => _openArticle(story),
           ),
         );
       },
     );
   }
 
-  void _openArticle(dynamic item) {
-    final storyId = item is Map ? item['id'] : item.id;
-    final story = _stories?.firstWhere(
-      (s) => s.id == storyId,
-      orElse: () => _stories!.first,
+  void _openArticle(Story story) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ArticleDetailScreen(story: story),
+      ),
     );
-    if (story != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ArticleDetailScreen(story: story),
-        ),
-      );
-    }
   }
 
   String _cycleLabel(String cycle) {
@@ -336,7 +335,6 @@ class _MapScreenState extends State<MapScreen> {
         options: MapOptions(
           initialCenter: _regionCoords[_regionCode(_selectedRegion)] ?? const LatLng(20, 0),
           initialZoom: _zoom(_selectedRegion),
-          onTap: (_, __) => setState(() {}),
         ),
         children: [
           TileLayer(
@@ -585,11 +583,11 @@ class _MapScreenState extends State<MapScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _cycleColor(p['cycle']).withValues(alpha: 0.15),
+                  color: _cycleColor(p['cycle'] ?? '').withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(_cycleLabel(p['cycle']), style: TextStyle(
-                  color: _cycleColor(p['cycle']), fontSize: 10, fontWeight: FontWeight.w600,
+                child: Text(_cycleLabel(p['cycle'] ?? ''), style: TextStyle(
+                  color: _cycleColor(p['cycle'] ?? ''), fontSize: 10, fontWeight: FontWeight.w600,
                 )),
               ),
             ],
@@ -730,24 +728,4 @@ class _MapScreenState extends State<MapScreen> {
       default: return '🌐';
     }
   }
-}
-
-// Mock Region model
-class Region {
-  final String id, name, code;
-  final String? parentId;
-  Region({required this.id, required this.name, required this.code, this.parentId});
-}
-
-// Mock Story model
-class Story {
-  final String id, title, sourceName, cycle;
-  final String? summary;
-  final int hotness;
-  Story({required this.id, required this.title, required this.sourceName, required this.cycle, this.summary, required this.hotness});
-}
-
-// Mock Service
-class MockService {
-  static List<Story> getStories() => [];
 }

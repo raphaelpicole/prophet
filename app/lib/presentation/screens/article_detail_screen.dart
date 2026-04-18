@@ -37,7 +37,7 @@ class ArticleDetailScreen extends StatelessWidget {
                 ),
               ),
               title: Text(
-                story.sourceName,
+                story.mainSubject,
                 style: const TextStyle(
                   color: AppTheme.texto,
                   fontSize: 16,
@@ -225,7 +225,7 @@ class ArticleDetailScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       _trendChip('Ciclo', _cycleEmoji(story.cycle), _cycleLabel(story.cycle)),
                       const SizedBox(width: 8),
-                      _trendChip('Horizonte', '⏱ ${analysis['horizonte'] ?? '30'} dias', Colors.teal),
+                      _trendChip('Horizonte', '⏱', '${analysis['horizonte'] ?? '30'} dias'),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -275,7 +275,7 @@ class ArticleDetailScreen extends StatelessWidget {
                     children: [
                       _tag(_cycleLabel(story.cycle), _cycleColor(story.cycle)),
                       _tag('📰 Notícia', Colors.blue),
-                      _tag('🌎 ${story.sourceName}', Colors.green),
+                      _tag('🌎 ${story.mainSubject}', Colors.green),
                       _tag('🔥 Hot', Colors.orange),
                     ],
                   ),
