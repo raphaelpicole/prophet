@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/story.dart';
 import '../models/indicator.dart';
+import '../models/source.dart';
 import '../../core/constants/constants.dart';
 
 class ApiService {
