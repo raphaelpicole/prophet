@@ -333,4 +333,44 @@ class _RadarScreenState extends State<RadarScreen> {
       ),
     );
   }
+
+  Widget _regionChip(String flag, String label, bool selected, VoidCallback onTap) {
+    final color = _regionColor(label);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.2) : AppTheme.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? color : AppTheme.surface),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(flag, style: const TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(
+                color: selected ? color : AppTheme.textoSec,
+                fontSize: 11, fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _regionColor(String label) {
+    if (label.contains('Sul')) return Colors.orange;
+    if (label.contains('Europa')) return Colors.blue;
+    if (label.contains('Oriente')) return Colors.red;
+    if (label.contains('Ásia')) return Colors.purple;
+    if (label.contains('América do Norte')) return Colors.teal;
+    if (label.contains('África')) return Colors.brown;
+    if (label.contains('Oceania')) return Colors.cyan;
+    return AppTheme.primary;
+  }
 }
