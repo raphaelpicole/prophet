@@ -1,5 +1,20 @@
 # Prophet — Arquitetura
 
+## Estado Atual (18/04/2026)
+
+### ✅ Funcionando
+- Backend: https://prophet-olive.vercel.app (produção)
+- Frontend: https://app-ten-kappa-76.vercel.app
+- API: `/api/stories`, `/api/indicators`, `/api/collect`, `/api/hello`
+- Pipeline: coleta RSS → mock analyzer → stories
+- Banco: Supabase com 20 tabelas + views
+
+### ❌ Problemas Conhecidos
+- Groq: "Organization has been restricted" → análise usa mock
+- Fontes quebradas: Folha (404), Estadão (404), O Globo, Metrópoles, ICL, Reuters
+
+---
+
 ## Visão Geral
 
 Painel de acompanhamento em tempo real das histórias do mundo. Notícias são coletadas, desduplicadas, categorizadas e apresentadas com indicadores visuais.
