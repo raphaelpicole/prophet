@@ -121,6 +121,66 @@ function normalizeCycle(cycle) {
   return map[c] || 'politico';
 }
 
+async function upsertStory(article, analysis, log) {
+  // Group by main_subject to create story
+  const subject = analysis.main_subject || article.title.slice(0, 50);
+  const storyHash = hash(subject);
+  
+  // Check if story with same subject exists
+  const existingRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/stories?main_subject=ilike.*${encodeURIComponent(subject.slice(0, 30))}*&limit=1`,
+    { headers }
+  );
+  let existing = [];
+  try { existing = await existingRes.json(); } catch { existing = []; }
+  
+  const cycle = normalizeCycle(analysis.cycle);
+  const sentimentMap = { 'positivo': 'up', 'negativo': 'down', 'neutro': 'stable' };
+  const sentiment_trend = sentimentMap[analysis.sentiment] || 'stable';
+  
+  const storyData = {
+    title: article.title.slice(0, 500),
+    main_subject: subject.slice(0, 100),
+    cycle,
+    summary: analysis.summary || null,
+    sentiment_trend,
+    hotness: 1,
+    article_count: 1,
+    updated_at: new Date().toISOString(),
+  };
+  
+  if (Array.isArray(existing) && existing.length > 0) {
+    // Update existing story
+    const existingStory = existing[0];
+    await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${existingStory.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        ...storyData,
+        article_count: (existingStory.article_count || 1) + 1,
+        hotness: Math.min((existingStory.hotness || 0) + 1, 100),
+      }),
+    });
+    log.push(`   📖 Story atualizada: "${subject.slice(0, 30)}" (${cycle})`);
+    return existingStory.id;
+  } else {
+    // Create new story
+    const newStoryRes = await fetch(`${SUPABASE_URL}/rest/v1/stories`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        ...storyData,
+        region: 'SAM',
+        started_at: new Date().toISOString(),
+      }),
+    });
+    let newStory = null;
+    try { newStory = await newStoryRes.json(); } catch { newStory = null; }
+    log.push(`   🆕 Story criada: "${subject.slice(0, 30)}" (${cycle})`);
+    return newStory?.id || null;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -174,12 +234,13 @@ export default async function handler(req, res) {
     }
     log.push(`   ✅ Inseridos: ${insertedCount}`);
 
-    // 5. Analyze with Ollama (max 3 articles to avoid timeout)
+    // 5. Analyze with Ollama
+    let storiesCreated = 0;
     if (OLLAMA_API_KEY) {
       log.push('🧠 Analisando com Ollama...');
       
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content&limit=1&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url,source_id&limit=1&order=published_at.desc`,
         { headers }
       );
       let pending = [];
@@ -187,26 +248,30 @@ export default async function handler(req, res) {
       
       log.push(`   📊 Pendentes: ${pending.length}`);
 
-      let analyzedCount = 0;
       for (const article of pending) {
         const elapsed = Date.now() - startTime;
         if (elapsed > 8000) { log.push('   ⏱️ Timeout, parando'); break; }
 
         const analysis = await analyzeWithOllama(article.title, article.content, log);
-        if (analysis) {
+        if (analysis && analysis.summary) {
+          // Update article
           await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`, {
             method: 'PATCH',
             headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               status: 'analyzed',
-              summary: analysis.summary || null,
+              summary: analysis.summary,
             }),
           });
-          analyzedCount++;
-          log.push(`   ✅ ${article.title.slice(0, 35)}... → ${analysis.cycle}`);
+          
+          // Create/update story
+          const storyId = await upsertStory(article, analysis, log);
+          if (storyId) storiesCreated++;
+          
+          log.push(`   ✅ "${article.title.slice(0, 35)}..." → ${normalizeCycle(analysis.cycle)}`);
         }
       }
-      log.push(`   ✅ Analisados: ${analyzedCount}`);
+      log.push(`   📖 Stories criadas/atualizadas: ${storiesCreated}`);
     }
 
     // 6. Stats
@@ -215,7 +280,7 @@ export default async function handler(req, res) {
     log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} | Stories: ${Array.isArray(storiesRes) ? storiesRes.length : '?'}`);
     log.push(`⏱️ Tempo: ${Date.now() - startTime}ms`);
 
-    return res.status(200).json({ success: true, log, articlesCollected: allItems.length });
+    return res.status(200).json({ success: true, log, articlesCollected: allItems.length, storiesCreated });
   } catch (e) {
     log.push(`❌ Erro: ${e.message}`);
     return res.status(500).json({ success: false, log, error: e.message });
