@@ -87,7 +87,7 @@ async function analyzeWithOllama(title, content) {
           { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}. Responda apenas com JSON.` }
         ],
         format: 'json',
-        options: { temperature: 0.3, num_predict: 200 },
+        options: { temperature: 0.3, num_predict: 150 },
         stream: false,
       }),
       signal: controller.signal,
