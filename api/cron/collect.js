@@ -67,7 +67,7 @@ async function fetchFeed(source) {
   }
 }
 
-async function analyzeWithOllama(title, content) {
+async function analyzeWithOllama(title, content, log) {
   if (!OLLAMA_API_KEY) { log.push('   ⚠️ Sem Ollama key'); return null; }
 
   try {
@@ -192,7 +192,7 @@ export default async function handler(req, res) {
         const elapsed = Date.now() - startTime;
         if (elapsed > 8000) { log.push('   ⏱️ Timeout, parando'); break; }
 
-        const analysis = await analyzeWithOllama(article.title, article.content);
+        const analysis = await analyzeWithOllama(article.title, article.content, log);
         if (analysis) {
           await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`, {
             method: 'PATCH',
