@@ -11,33 +11,21 @@ class ProphetScreen extends StatefulWidget {
 
 class _ProphetScreenState extends State<ProphetScreen> {
   final ApiService _api = ApiService();
-  List<dynamic> _predictions = [];
-  bool _loading = true;
   String _selectedCycle = 'Todos';
-
   final List<String> _cycles = ['Todos', 'conflito', 'economico', 'politico', 'social', 'tecnologico', 'ambiental', 'cultural'];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadPredictions();
-  }
-
-  Future<void> _loadPredictions() async {
-    setState(() => _loading = true);
+  Future<List<dynamic>> _loadPredictions() async {
     try {
       final cycle = _selectedCycle == 'Todos' ? null : _selectedCycle;
-      final predictions = await _api.getPredictions(cycle: cycle).catchError((_) => <dynamic>[]);
-      if (mounted) setState(() {
-        _predictions = predictions.isEmpty ? _mockPredictions() : predictions;
-        _loading = false;
-      });
+      final predictions = await _api.getPredictions(cycle: cycle);
+      return predictions;
     } catch (e) {
-      if (mounted) setState(() {
-        _predictions = _mockPredictions();
-        _loading = false;
-      });
+      return _mockPredictions();
     }
+  }
+
+  void _setCycle(String cycle) {
+    setState(() => _selectedCycle = cycle);
   }
 
   List<dynamic> _mockPredictions() {
@@ -55,76 +43,130 @@ class _ProphetScreenState extends State<ProphetScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bg,
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-            : _predictions.isEmpty
-                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.warning_amber, color: AppTheme.textoSec, size: 48),
-                    const SizedBox(height: 12),
-                    const Text('Sem dados disponíveis', style: TextStyle(color: AppTheme.textoSec, fontSize: 14)),
-                    const SizedBox(height: 12),
-                    ElevatedButton(onPressed: _loadPredictions, style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                      child: const Text('Tentar novamente', style: TextStyle(fontSize: 13))),
-                  ]))
-                : RefreshIndicator(
-                    onRefresh: _loadPredictions,
-                    color: AppTheme.primary,
-                    child: CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(children: [
-                            const Text('🔮 Profeta', style: TextStyle(color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold)),
-                            const Spacer(),
-                            IconButton(icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20), onPressed: _loadPredictions),
-                          ]),
-                        )),
-                        SliverToBoxAdapter(child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Row(children: [
-                              Icon(Icons.emoji_events, color: AppTheme.warning, size: 20),
-                              SizedBox(width: 8),
-                              Text('🏆 Track Record', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
-                            ]),
-                            const SizedBox(height: 12),
-                            Row(children: [
-                              _stat('142', 'previsões'),
-                              const SizedBox(width: 24),
-                              _stat('63%', 'corretas'),
-                              const SizedBox(width: 24),
-                              _stat('0.21', 'Brier'),
-                            ]),
-                          ]),
-                        )),
-                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                        SliverToBoxAdapter(child: SizedBox(
-                          height: 38,
-                          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
-                            children: _cycles.map((c) => _cycleChip(c)).toList()),
-                        )),
-                        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                        SliverToBoxAdapter(child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(children: [
-                            const Text('⚠️ Previsões Ativas', style: TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
-                            const Spacer(),
-                            Text('${_predictions.length} active', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
-                          ]),
-                        )),
-                        const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverList(delegate: SliverChildBuilderDelegate(
-                            (context, i) => _predictionCard(_predictions[i]), childCount: _predictions.length)),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                      ],
-                    ),
-                  ),
+        child: Column(
+          children: [
+            _buildHeader(),
+            _buildTrackRecord(),
+            _buildCycleFilter(),
+            Expanded(child: _buildPredictionsList()),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+      child: Row(
+        children: [
+          const Text('🔮 Profeta', style: TextStyle(
+            color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold,
+          )),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20),
+            onPressed: () => setState(() {}),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrackRecord() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.emoji_events, color: AppTheme.warning, size: 20),
+            SizedBox(width: 8),
+            Text('🏆 Track Record', style: TextStyle(
+              color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+            )),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            _stat('142', 'previsões'),
+            const SizedBox(width: 24),
+            _stat('63%', 'corretas'),
+            const SizedBox(width: 24),
+            _stat('0.21', 'Brier'),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleFilter() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        children: _cycles.map((c) => _cycleChip(c)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPredictionsList() {
+    return FutureBuilder<List<dynamic>>(
+      future: _loadPredictions(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2),
+          );
+        }
+
+        final predictions = snapshot.data ?? _mockPredictions();
+
+        if (predictions.isEmpty) {
+          return Center(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.psychology_outlined, color: AppTheme.textoSec, size: 48),
+              const SizedBox(height: 12),
+              const Text('Nenhuma previsão disponível', style: TextStyle(
+                color: AppTheme.textoSec, fontSize: 14,
+              )),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => setState(() {}),
+                child: const Text('Tentar novamente'),
+              ),
+            ],
+          ));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+          itemCount: predictions.length + 1,
+          itemBuilder: (context, i) {
+            if (i == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  const Text('⚠️ Previsões Ativas', style: TextStyle(
+                    color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+                  )),
+                  const Spacer(),
+                  Text('${predictions.length} active', style: const TextStyle(
+                    color: AppTheme.textoSec, fontSize: 11,
+                  )),
+                ]),
+              );
+            }
+            return _predictionCard(predictions[i - 1]);
+          },
+        );
+      },
     );
   }
 
@@ -134,7 +176,7 @@ class _ProphetScreenState extends State<ProphetScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
-        onTap: () { setState(() => _selectedCycle = cycle); _loadPredictions(); },
+        onTap: () { _setCycle(cycle); },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
@@ -142,81 +184,139 @@ class _ProphetScreenState extends State<ProphetScreen> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: active ? color : AppTheme.surface),
           ),
-          child: Text(cycle == 'Todos' ? '🌐 Todos' : _cycleLabel(cycle),
-            style: TextStyle(color: active ? color : AppTheme.textoSec, fontSize: 12)),
+          child: Text(
+            cycle == 'Todos' ? '🌐 Todos' : _cycleLabel(cycle),
+            style: TextStyle(
+              color: active ? color : AppTheme.textoSec,
+              fontSize: 12,
+              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
         ),
       ),
     );
   }
 
   String _cycleLabel(String cycle) {
-    switch (cycle) {
-      case 'conflito': return '💥 Conflito';
-      case 'economico': return '📉 Econômico';
-      case 'politico': return '🏛️ Político';
-      case 'social': return '👥 Social';
-      case 'tecnologico': return '🤖 Tech';
-      case 'ambiental': return '🌿 Ambiental';
-      case 'cultural': return '🎭 Cultural';
-      default: return cycle;
-    }
+    const labels = {
+      'conflito': '💥 Conflito',
+      'economico': '📉 Econômico',
+      'politico': '🏛️ Político',
+      'social': '👥 Social',
+      'tecnologico': '🤖 Tech',
+      'ambiental': '🌿 Ambiental',
+      'cultural': '🎭 Cultural',
+    };
+    return labels[cycle] ?? cycle;
   }
 
-  Widget _stat(String v, String l) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(v, style: const TextStyle(color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold)),
-    Text(l, style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
-  ]);
+  Widget _stat(String v, String l) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(v, style: const TextStyle(
+        color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold,
+      )),
+      Text(l, style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+    ],
+  );
 
   Widget _predictionCard(dynamic p) {
-    final prob = p['probability'] as int;
-    final barColor = prob >= 70 ? AppTheme.alerta : prob >= 50 ? AppTheme.warning : AppTheme.sucesso;
+    final prob = (p['probability'] is num
+        ? (p['probability'] as num).toDouble()
+        : (double.tryParse(p['probability'].toString()) ?? 0.5) * 100).toInt();
+    final barColor = prob >= 70
+        ? AppTheme.alerta
+        : prob >= 50
+            ? AppTheme.warning
+            : AppTheme.sucesso;
     final positive = p['positive'] as bool? ?? false;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: barColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
-            child: Text(prob >= 70 ? '🔴 Crítico' : '🟡 Aviso', style: TextStyle(color: barColor, fontSize: 10, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: barColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                prob >= 70 ? '🔴 Crítico' : '🟡 Aviso',
+                style: TextStyle(color: barColor, fontSize: 10, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _cycleColor(p['cycle'] ?? '').withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _cycleLabel(p['cycle'] ?? ''),
+                style: TextStyle(color: _cycleColor(p['cycle'] ?? ''), fontSize: 10),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              p['delta'] ?? '',
+              style: TextStyle(
+                color: positive ? AppTheme.sucesso : AppTheme.alerta,
+                fontSize: 12, fontWeight: FontWeight.w600,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Text(
+            p['title'] ?? '',
+            style: const TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: _cycleColor(p['cycle']).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
-            child: Text(p['cycle'] ?? '', style: TextStyle(color: _cycleColor(p['cycle']), fontSize: 10)),
-          ),
-          const Spacer(),
-          Text(p['delta'] ?? '', style: TextStyle(color: positive ? AppTheme.sucesso : AppTheme.alerta, fontSize: 12, fontWeight: FontWeight.w600)),
-        ]),
-        const SizedBox(height: 10),
-        Text(p['title'] ?? '', style: const TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Stack(children: [
-          Container(height: 6, decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(3))),
-          FractionallySizedBox(widthFactor: prob / 100, child: Container(height: 6, decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(3)))),
-        ]),
-        const SizedBox(height: 6),
-        Text('${prob}% • Horizonte: ${p['horizonDays']}d • Confiança: ${p['confidence']}%', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
-        if (p['pattern'] != null) ...[
+          const SizedBox(height: 8),
+          Stack(children: [
+            Container(height: 6, decoration: BoxDecoration(
+              color: AppTheme.surface, borderRadius: BorderRadius.circular(3),
+            )),
+            FractionallySizedBox(
+              widthFactor: prob / 100,
+              child: Container(height: 6, decoration: BoxDecoration(
+                color: barColor, borderRadius: BorderRadius.circular(3),
+              )),
+            ),
+          ]),
           const SizedBox(height: 6),
-          Text(p['pattern'], style: const TextStyle(color: AppTheme.prophet, fontSize: 11, fontStyle: FontStyle.italic)),
+          Text(
+            '${prob}% • Horizonte: ${p['horizonDays'] ?? '?'}d • Confiança: ${p['confidence'] ?? '?'}%',
+            style: const TextStyle(color: AppTheme.textoSec, fontSize: 11),
+          ),
+          if (p['pattern'] != null && (p['pattern'] as String).isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(p['pattern'], style: const TextStyle(
+              color: AppTheme.prophet, fontSize: 11, fontStyle: FontStyle.italic,
+            )),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
   Color _cycleColor(String cycle) {
-    switch (cycle) {
-      case 'conflito': return AppTheme.alerta;
-      case 'economico': return AppTheme.warning;
-      case 'politico': return AppTheme.primary;
-      case 'social': return AppTheme.sucesso;
-      case 'tecnologico': return Colors.blue;
-      case 'ambiental': return Colors.green;
-      default: return AppTheme.textoSec;
-    }
+    const colors = {
+      'conflito': AppTheme.alerta,
+      'economico': AppTheme.warning,
+      'politico': AppTheme.primary,
+      'social': AppTheme.sucesso,
+      'tecnologico': Colors.blue,
+      'ambiental': Colors.green,
+      'cultural': Colors.orange,
+    };
+    return colors[cycle] ?? AppTheme.textoSec;
   }
 }
