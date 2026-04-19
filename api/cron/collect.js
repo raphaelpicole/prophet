@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeXllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
 const headers = {
   'apikey': SUPABASE_KEY,
   'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -83,10 +83,12 @@ async function fetchFeed(source) {
 
 async function analyzeWithOllama(title, content) {
   if (!OLLAMA_API_KEY) {
+    log.push('   ⚠️ Ollama API key não configurada');
     return null;
   }
 
   try {
+    log.push(`   🤖 Analisando: "${title.slice(0, 50)}..."`);
     const response = await fetch('https://ollama.com/api/chat', {
       method: 'POST',
       headers: {
@@ -109,21 +111,22 @@ async function analyzeWithOllama(title, content) {
     });
 
     if (!response.ok) {
-      console.error('Ollama API error:', response.status);
+      log.push(`   ❌ Ollama error: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
     const content_str = data.message?.content || '{}';
+    log.push(`   ✅ Ollama response: ${content_str.slice(0, 100)}`);
     
     try {
       return JSON.parse(content_str);
     } catch {
-      console.error('Failed to parse Ollama response:', content_str);
+      log.push(`   ❌ Failed to parse Ollama response`);
       return null;
     }
   } catch (e) {
-    console.error('Ollama request failed:', e.message);
+    log.push(`   ❌ Ollama request failed: ${e.message}`);
     return null;
   }
 }
@@ -149,11 +152,21 @@ export default async function handler(req, res) {
     // 1. Busca sources do banco
     log.push('📥 Carregando fontes...');
     const sourcesRes = await fetch(`${SUPABASE_URL}/rest/v1/sources?select=id,slug,name,active&active=eq.true`, { headers });
-    const sources = await sourcesRes.json();
+    log.push(`   Sources status: ${sourcesRes.status}`);
+    let sources;
+    try {
+      sources = await sourcesRes.json();
+    } catch (e) {
+      log.push(`   ❌ Failed to parse sources: ${e.message}`);
+      sources = [];
+    }
+    log.push(`   Sources type: ${typeof sources}, isArray: ${Array.isArray(sources)}`);
+    
     if (!Array.isArray(sources)) {
-      log.push('   ⚠️ raw_articles não existe ainda — inserção de teste');
+      log.push('   ⚠️ Sources não é array — usando fallback');
+      sources = [];
     } else {
-      log.push(`   Fontes ativas: ${sources.length}`);
+      log.push(`   ✅ Fontes ativas: ${sources.length}`);
     }
 
     // 2. Coleta RSS em paralelo
@@ -161,44 +174,37 @@ export default async function handler(req, res) {
     const results = await Promise.allSettled(RSS_SOURCES.map(s => fetchFeed(s)));
     const allItems = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 
-    log.push(`   Artigos RSS coletados: ${allItems.length}`);
+    log.push(`   📰 Artigos RSS coletados: ${allItems.length}`);
 
     if (allItems.length === 0) {
       log.push('⚠️ Nenhum artigo coletado (verifique feeds RSS)');
       return res.status(200).json({ success: true, log, articles: 0 });
     }
 
-    // 3. Dedup + insert em lote
-    log.push('🔍 Deduplicando...');
+    // 3. Dedup + insert
+    log.push('🔍 Deduplicando e inserindo...');
 
     const slugToId = {};
-    if (Array.isArray(sources)) {
-      for (const s of sources) {
-        slugToId[s.slug] = s.id;
-      }
-    }
-
-    const toInsert = [];
-    for (const item of allItems) {
-      const h = hash(item.title + item.url);
-      const sourceId = slugToId[item.sourceSlug] || null;
-      toInsert.push({
-        source_id: sourceId,
-        title: item.title.slice(0, 500),
-        url: item.url,
-        content: item.content?.slice(0, 2000) || '',
-        published_at: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
-        content_hash: h,
-        status: 'pending',
-      });
+    for (const s of sources) {
+      slugToId[s.slug] = s.id;
     }
 
     let insertedCount = 0;
-    for (const article of toInsert) {
+    for (const item of allItems) {
+      const h = hash(item.title + item.url);
+      const sourceId = slugToId[item.sourceSlug] || null;
       const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
-        body: JSON.stringify(article),
+        body: JSON.stringify({
+          source_id: sourceId,
+          title: item.title.slice(0, 500),
+          url: item.url,
+          content: item.content?.slice(0, 2000) || '',
+          published_at: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
+          content_hash: h,
+          status: 'pending',
+        }),
       });
       if (r.ok) insertedCount++;
     }
@@ -208,22 +214,25 @@ export default async function handler(req, res) {
     if (OLLAMA_API_KEY) {
       log.push('🧠 Analisando artigos pendentes com Ollama Cloud...');
       
-      // Busca artigos pendentes (máx 20 por execução)
       const pendingRes = await fetch(
         `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url&limit=20&order=published_at.desc`,
         { headers }
       );
-      const pending = await pendingRes.json();
+      let pending = [];
+      try {
+        pending = await pendingRes.json();
+      } catch (e) {
+        log.push(`   ❌ Failed to parse pending: ${e.message}`);
+      }
       
-      if (Array.isArray(pending) && pending.length > 0) {
-        log.push(`   Artigos para analisar: ${pending.length}`);
-        
+      log.push(`   📊 Artigos pendentes: ${pending.length}`);
+      
+      if (pending.length > 0) {
         let analyzedCount = 0;
         for (const article of pending) {
           const analysis = await analyzeWithOllama(article.title, article.content);
           
           if (analysis) {
-            // Atualiza artigo com análise
             const updateRes = await fetch(
               `${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`,
               {
@@ -243,17 +252,11 @@ export default async function handler(req, res) {
             );
             
             if (updateRes.ok) analyzedCount++;
-            
-            // Delay entre requests (1.5s)
             await new Promise(r => setTimeout(r, 1500));
-          } else {
-            log.push(`   ⚠️ Falha na análise: ${article.title.slice(0, 50)}...`);
           }
         }
         
         log.push(`   ✅ Analisados: ${analyzedCount} artigos`);
-      } else {
-        log.push('   Nenhum artigo pendente para analisar');
       }
     } else {
       log.push('🧠 Ollama API key não configurada — análise desabilitada');
