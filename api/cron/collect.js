@@ -68,11 +68,12 @@ async function fetchFeed(source) {
 }
 
 async function analyzeWithOllama(title, content) {
-  if (!OLLAMA_API_KEY) return null;
+  if (!OLLAMA_API_KEY) { log.push('   ⚠️ Sem Ollama key'); return null; }
 
   try {
+    log.push(`   🤖 Analisando: "${title.slice(0, 30)}"`);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const tid = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch('https://ollama.com/api/chat', {
       method: 'POST',
@@ -84,7 +85,7 @@ async function analyzeWithOllama(title, content) {
         model: OLLAMA_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}. Responda apenas com JSON.` }
+          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 200)}. Responda apenas com JSON.` }
         ],
         format: 'json',
         options: { temperature: 0.3, num_predict: 150 },
@@ -92,14 +93,15 @@ async function analyzeWithOllama(title, content) {
       }),
       signal: controller.signal,
     });
-
-    clearTimeout(timeout);
-
+    clearTimeout(tid);
+    log.push(`   📡 Ollama status: ${response.status}`);
     if (!response.ok) return null;
     const data = await response.json();
     const content_str = data.message?.content || '{}';
+    log.push(`   📝 Content: ${content_str.slice(0, 60)}`);
     return JSON.parse(content_str);
   } catch (e) {
+    log.push(`   ❌ Erro: ${e.message}`);
     return null;
   }
 }
