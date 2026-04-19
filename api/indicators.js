@@ -34,9 +34,9 @@ export default async function handler(req, res) {
             // Total de histórias ativas
             fetch(`${SUPABASE_URL}/rest/v1/stories?archived=eq.false&select=id`, { headers }),
             // Total de artigos hoje
-            fetch(`${SUPABASE_URL}/rest/v1/raw_articles?collected_at=gte.${today}T00:00:00&select=id`, { headers }),
-            // Hot stories (últimas 24h) — busca todas e ordena
-            fetch(`${SUPABASE_URL}/rest/v1/v_story_indicators?archived=eq.false&updated_at=gte.${yesterday}&select=id,title,article_count,avg_sentiment&order=article_count.desc&limit=5`, { headers }),
+            fetch(`${SUPABASE_URL}/rest/v1/raw_articles?published_at=gte.${today}T00:00:00&select=id`, { headers }),
+            // Hot stories (últimas 24h) — busca stories ordenadas por article_count
+            fetch(`${SUPABASE_URL}/rest/v1/stories?archived=eq.false&order=article_count.desc&limit=5&select=id,title,article_count,cycle`, { headers }),
             // Contagem por ciclo
             fetch(`${SUPABASE_URL}/rest/v1/stories?archived=eq.false&cycle=not.is.null&select=cycle`, { headers }),
         ]);

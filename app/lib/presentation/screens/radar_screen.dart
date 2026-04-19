@@ -197,12 +197,14 @@ class _RadarScreenState extends State<RadarScreen> {
                                 children: [
                                   _regionChip('🌐', 'ALL', 'Todos', _selectedRegion == null, () => _setRegion(null)),
                                   _regionChip('🌎', 'SAM', 'SAM', _selectedRegion == 'SAM', () => _setRegion('SAM')),
-                                  _regionChip('🏰', 'EUR', 'EUR', _selectedRegion == 'EUR', () => _setRegion('EUR')),
-                                  _regionChip('🕌', 'MID', 'MID', _selectedRegion == 'MID', () => _setRegion('MID')),
-                                  _regionChip('🥮', 'ASI', 'ASI', _selectedRegion == 'ASI', () => _setRegion('ASI')),
-                                  _regionChip('🌐', 'NAM', 'NAM', _selectedRegion == 'NAM', () => _setRegion('NAM')),
-                                  _regionChip('🌿', 'AFR', 'AFR', _selectedRegion == 'AFR', () => _setRegion('AFR')),
-                                  _regionChip('🏝️', 'OCE', 'OCE', _selectedRegion == 'OCE', () => _setRegion('OCE')),
+                                  _regionChip('🇧🇷', 'BR', 'BR', _selectedRegion == 'BR', () => _setRegion('BR')),
+                                  _regionChip('🇺🇸', 'US', 'US', _selectedRegion == 'US', () => _setRegion('US')),
+                                  _regionChip('🇪🇺', 'EU', 'EU', _selectedRegion == 'EU', () => _setRegion('EU')),
+                                  _regionChip('🇨🇳', 'CN', 'CN', _selectedRegion == 'CN', () => _setRegion('CN')),
+                                  _regionChip('🇷🇺', 'RU', 'RU', _selectedRegion == 'RU', () => _setRegion('RU')),
+                                  _regionChip('🌙', 'ME', 'ME', _selectedRegion == 'ME', () => _setRegion('ME')),
+                                  _regionChip('🌍', 'AF', 'AF', _selectedRegion == 'AF', () => _setRegion('AF')),
+                                  _regionChip('🌏', 'AS', 'AS', _selectedRegion == 'AS', () => _setRegion('AS')),
                                 ],
                               ),
                             ),
@@ -446,12 +448,14 @@ class _RadarScreenState extends State<RadarScreen> {
     switch (code) {
       case 'ALL': return AppTheme.primary;
       case 'SAM': return Colors.orange;
-      case 'EUR': return Colors.blue;
-      case 'MID': return Colors.red;
-      case 'ASI': return Colors.purple;
-      case 'NAM': return Colors.teal;
-      case 'AFR': return Colors.brown;
-      case 'OCE': return Colors.cyan;
+      case 'BR': return Colors.green;
+      case 'US': return Colors.blue;
+      case 'EU': return Colors.blue.shade700;
+      case 'CN': return Colors.red;
+      case 'RU': return Colors.purple.shade800;
+      case 'ME': return Colors.amber;
+      case 'AF': return Colors.brown;
+      case 'AS': return Colors.deepOrange;
       default: return AppTheme.primary;
     }
   }

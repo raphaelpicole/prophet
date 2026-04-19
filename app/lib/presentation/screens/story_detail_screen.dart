@@ -80,7 +80,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _kpi('🔥', '${widget.story.hotness}', 'Relevância'),
                   _kpi('📰', '${widget.story.articleCount}', 'Artigos'),
                   _kpi('🕐', _timeAgo(widget.story.updatedAt), 'Atualizado'),
                 ],
@@ -144,7 +143,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
 
   Widget _trendTag(String trend) {
     final color = trend == 'rising' ? AppTheme.sucesso : trend == 'falling' ? AppTheme.alerta : AppTheme.textoSec;
-    final label = trend == 'rising' ? 'Subindo' : trend == 'falling' ? 'Caidndo' : 'Estável';
+    final label = trend == 'rising' ? 'Subindo' : trend == 'falling' ? 'Caindo' : 'Estável';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
@@ -179,7 +178,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _shareStory() async {
-    final url = Uri.parse('https://twitter.com/intent/tweet?text=${Uri.encodeComponent(widget.story.title)}&url=${Uri.encodeComponent("https://prophet-olive.vercel.app")}');
+    final url = Uri.parse('https://twitter.com/intent/tweet?text=${Uri.encodeComponent(widget.story.title)}&url=${Uri.encodeComponent("https://prophet-9v2jem4ra-raphaelpicoles-projects.vercel.app")}');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
