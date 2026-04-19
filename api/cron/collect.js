@@ -144,25 +144,24 @@ async function upsertStory(article, analysis, log) {
     cycle,
     summary: analysis.summary || null,
     sentiment_trend,
-    hotness: 1,
     article_count: 1,
     updated_at: new Date().toISOString(),
   };
   
+  let storyId = null;
   if (Array.isArray(existing) && existing.length > 0) {
     // Update existing story
     const existingStory = existing[0];
-    await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${existingStory.id}`, {
+    storyId = existingStory.id;
+    await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${storyId}`, {
       method: 'PATCH',
       headers: { ...headers, Prefer: 'return=representation' },
       body: JSON.stringify({
         ...storyData,
         article_count: (existingStory.article_count || 1) + 1,
-        hotness: Math.min((existingStory.hotness || 0) + 1, 100),
       }),
     });
     log.push(`   📖 Story atualizada: "${subject.slice(0, 30)}" (${cycle})`);
-    return existingStory.id;
   } else {
     // Create new story
     const newStoryRes = await fetch(`${SUPABASE_URL}/rest/v1/stories`, {
@@ -176,9 +175,10 @@ async function upsertStory(article, analysis, log) {
     });
     let newStory = null;
     try { newStory = await newStoryRes.json(); } catch { newStory = null; }
+    storyId = newStory?.[0]?.id || newStory?.id || null;
     log.push(`   🆕 Story criada: "${subject.slice(0, 30)}" (${cycle})`);
-    return newStory?.id || null;
   }
+  return storyId;
 }
 
 export default async function handler(req, res) {
@@ -266,7 +266,15 @@ export default async function handler(req, res) {
           
           // Create/update story
           const storyId = await upsertStory(article, analysis, log);
-          if (storyId) storiesCreated++;
+          if (storyId) {
+            // Link article to story
+            await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`, {
+              method: 'PATCH',
+              headers: { ...headers },
+              body: JSON.stringify({ story_id: storyId }),
+            });
+            storiesCreated++;
+          }
           
           log.push(`   ✅ "${article.title.slice(0, 35)}..." → ${normalizeCycle(analysis.cycle)}`);
         }
