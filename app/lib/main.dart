@@ -5,6 +5,7 @@ import 'presentation/screens/analysis_screen.dart';
 import 'presentation/screens/prophet_screen.dart';
 import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/config_screen.dart';
+import 'presentation/screens/admin_screen.dart';
 import 'presentation/screens/story_detail_screen.dart';
 import 'presentation/screens/article_detail_screen.dart';
 import 'data/models/story.dart';
@@ -61,7 +62,10 @@ class _MainShellState extends State<MainShell> {
     ProphetScreen(),
     MapScreen(),
     ConfigScreen(),
+    AdminScreen(),
   ];
+
+  final _labels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config', 'Admin'];
 
   @override
   Widget build(BuildContext context) {
@@ -84,8 +88,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildSideNav() {
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined];
-    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.public, Icons.settings];
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
+    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.public, Icons.settings, Icons.admin_panel_settings];
     final labels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config'];
 
     return Container(
@@ -153,6 +157,7 @@ class _MainShellState extends State<MainShell> {
           BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_outlined), label: 'Profeta'),
           BottomNavigationBarItem(icon: Icon(Icons.public_outlined), label: 'Mapa'),
           BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Config'),
+          BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings_outlined), label: 'Admin'),
         ],
       ),
     );

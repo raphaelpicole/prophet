@@ -85,8 +85,52 @@ class ApiService {
       final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/logs'));
       if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
       return null;
-    } catch (_) {
+    } catch (e) {
       return null;
     }
+  }
+
+  // Admin panel
+  Future<Map<String, dynamic>?> getAdminActions() async {
+    try {
+      final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/admin/actions'));
+      if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<List<dynamic>> getAdminLogs() async {
+    try {
+      final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/logs'));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        return data['logs'] as List<dynamic>? ?? [];
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> getAdminTable(String table, int page) async {
+    final res = await _client.get(
+      Uri.parse('${ApiConstants.baseUrl}/admin/tables').replace(
+        queryParameters: {'table': table, 'page': page.toString(), 'limit': '20'},
+      ),
+    );
+    if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
+    throw Exception('Failed to load table');
+  }
+
+  Future<Map<String, dynamic>> runAdminAction(String action) async {
+    final res = await _client.post(
+      Uri.parse('${ApiConstants.baseUrl}/admin/actions').replace(
+        queryParameters: {'action': action},
+      ),
+    );
+    if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
+    throw Exception('Action failed');
   }
 }
