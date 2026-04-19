@@ -351,27 +351,61 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  static const _regionKeywords = {
+    'SAM': ['Brasil', 'Argentina', 'Chile', 'Peru', 'Colômbia', 'Venezuela', 'Equador', 'Bolívia', 'Uruguai', 'Paraguai', 'América do Sul', 'Sul-America'],
+    'NAM': ['Estados Unidos', 'Canadá', 'México', 'EUA', 'USA', 'América do Norte', 'Norte-America'],
+    'EUR': ['Europa', 'União Europeia', 'Reino Unido', 'França', 'Alemanha', 'Itália', 'Espanha', 'Portugal', 'UE'],
+    'ASI': ['China', 'Japão', 'Índia', 'Coreia', 'Taiwan', 'Hong Kong', 'Ásia', 'Asiático'],
+    'MID': ['Oriente Médio', 'Iraque', 'Irã', 'Israel', 'Palestina', 'Arábia', 'Líbano', 'Síria', 'Emirados'],
+    'AFR': ['África', 'Nigéria', 'Egito', 'África do Sul', 'Marrocos', 'Argélia'],
+    'OCE': ['Oceania', 'Austrália', 'Nova Zelândia', 'Indonésia', 'Papua'],
+  };
+
+  static const _regionCycleWeights = {
+    'SAM': {'color': Colors.orange, 'baseRadius': 50.0, 'maxRadius': 100.0},
+    'NAM': {'color': Colors.teal, 'baseRadius': 40.0, 'maxRadius': 90.0},
+    'EUR': {'color': Colors.blue, 'baseRadius': 35.0, 'maxRadius': 85.0},
+    'ASI': {'color': Colors.purple, 'baseRadius': 30.0, 'maxRadius': 80.0},
+    'MID': {'color': Colors.red, 'baseRadius': 30.0, 'maxRadius': 75.0},
+    'AFR': {'color': Colors.amber, 'baseRadius': 25.0, 'maxRadius': 60.0},
+    'OCE': {'color': Colors.cyan, 'baseRadius': 20.0, 'maxRadius': 50.0},
+  };
+
+  int _countForRegion(String code) {
+    if (_stories == null || _stories!.isEmpty) return 0;
+    final keywords = _regionKeywords[code] ?? [];
+    return _stories!.where((s) {
+      final t = s.title.toLowerCase();
+      return keywords.any((k) => t.contains(k.toLowerCase()));
+    }).length;
+  }
+
   List<CircleMarker> _buildHeatmapCircles() {
-    final data = [
-      {'code': 'SAM', 'count': 18},
-      {'code': 'NAM', 'count': 12},
-      {'code': 'EUR', 'count': 8},
-      {'code': 'ASI', 'count': 6},
-      {'code': 'MID', 'count': 4},
-      {'code': 'GLB', 'count': 5},
-    ];
-    return data.map((e) {
-      final code = e['code'] as String;
-      final count = e['count'] as int;
-      final opacity = (count / 20.0).clamp(0.15, 0.55);
-      final radius = (count * 3.0).clamp(30.0, 90.0);
-      final color = _regionColor(code);
+    final codes = ['SAM', 'NAM', 'EUR', 'ASI', 'MID', 'AFR', 'OCE'];
+    int maxCount = 1;
+    final counts = <String, int>{};
+    for (final code in codes) {
+      final c = _countForRegion(code);
+      counts[code] = c;
+      if (c > maxCount) maxCount = c;
+    }
+
+    return codes.map((code) {
+      final count = counts[code]!;
+      final cfg = _regionCycleWeights[code]!;
+      final baseR = (cfg['baseRadius'] as num).toDouble();
+      final maxR = (cfg['maxRadius'] as num).toDouble();
+      final intensity = maxCount > 0 ? (count / maxCount) : 0.0;
+      final radius = baseR + (maxR - baseR) * intensity;
+      final opacity = count > 0 ? (0.20 + 0.45 * intensity) : 0.0;
+      final color = cfg['color'] as Color;
+
       return CircleMarker(
         point: _regionCoords[code] ?? const LatLng(0, 0),
         radius: radius,
-        color: color.withValues(alpha: opacity * 0.35),
-        borderColor: color.withValues(alpha: opacity * 0.8),
-        borderStrokeWidth: 1.5,
+        color: color.withValues(alpha: opacity),
+        borderColor: color.withValues(alpha: count > 0 ? 0.7 : 0),
+        borderStrokeWidth: count > 0 ? 1.5 : 0,
       );
     }).toList();
   }
@@ -421,8 +455,9 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   String _regionArticleCount(String code) {
-    final counts = {'SAM': '18 notícias', 'NAM': '12 notícias', 'EUR': '8 notícias', 'ASI': '6 notícias', 'MID': '4 notícias', 'GLB': '40+ notícias'};
-    return counts[code] ?? '';
+    final count = _regionStoriesForCode(code).length;
+    if (count == 0) return '';
+    return '$count ${count == 1 ? 'story' : 'stories'}';
   }
 
   void _onMarkerTap(Region r) {
@@ -500,21 +535,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   List<Story> _regionStoriesForCode(String code) {
-    if (_stories == null) return [];
-    const regionMap = {
-      'SAM': ['Brasil', 'Argentina', 'América do Sul'],
-      'NAM': ['Estados Unidos', 'Canadá', 'América do Norte'],
-      'EUR': ['Europa', 'UE', 'Reino Unido'],
-      'ASI': ['China', 'Japão', 'Ásia'],
-      'MID': ['Oriente Médio', 'Iraque', 'Israel'],
-      'BRA': ['Brasil'],
-      'USA': ['Estados Unidos'],
-      'GLB': [],
-    };
-    final keywords = regionMap[code] ?? [];
+    if (_stories == null || _stories!.isEmpty) return [];
+    final keywords = _regionKeywords[code] ?? [];
+    if (keywords.isEmpty) return _stories!;
     return _stories!.where((s) {
-      if (keywords.isEmpty) return true;
-      return keywords.any((k) => s.title.toLowerCase().contains(k.toLowerCase()));
+      final t = s.title.toLowerCase();
+      return keywords.any((k) => t.contains(k.toLowerCase()));
     }).toList();
   }
 
