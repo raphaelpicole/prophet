@@ -97,7 +97,7 @@ async function analyzeWithOllama(title, content, log) {
     log.push(`   📡 Ollama status: ${response.status}`);
     if (!response.ok) return null;
     const data = await response.json();
-    const content_str = data.message?.content || '{}';
+    const content_str = (data.message?.content || '{}').replace(/```json\n?|\n?```/g, '').trim();
     log.push(`   📝 Content: ${content_str.slice(0, 60)}`);
     return JSON.parse(content_str);
   } catch (e) {
