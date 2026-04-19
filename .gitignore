@@ -60,3 +60,5 @@ temp/
 # --- Supabase local (se usar) ---
 supabase/.branches/
 supabase/config.toml
+.vercel
+.env*.local

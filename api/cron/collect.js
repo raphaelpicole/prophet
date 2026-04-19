@@ -210,7 +210,7 @@ export default async function handler(req, res) {
       
       // Busca artigos pendentes (máx 20 por execução)
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&analysis=is.null&select=id,title,content,url&limit=20&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url&limit=20&order=published_at.desc`,
         { headers }
       );
       const pending = await pendingRes.json();
