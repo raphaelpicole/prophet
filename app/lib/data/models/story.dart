@@ -9,6 +9,8 @@ class Story {
   final int articleCount;
   final DateTime updatedAt;
 
+  final String? region;
+
   Story({
     required this.id,
     required this.title,
@@ -19,6 +21,7 @@ class Story {
     required this.hotness,
     required this.articleCount,
     required this.updatedAt,
+    this.region,
   });
 
   factory Story.fromJson(Map<String, dynamic> json) {
@@ -34,6 +37,7 @@ class Story {
       hotness: hotnessRaw.toInt(),
       articleCount: json['article_count'] ?? 0,
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
+      region: json['region'],
     );
   }
 }
