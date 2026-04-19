@@ -19,7 +19,47 @@ const RSS_SOURCES = [
   { slug: 'metropoles', name: 'Metropoles', feed: 'https://www.metropoles.com/arqs/rss.xml' },
 ];
 
-const SYSTEM_PROMPT = `Você é um analisador de notícias do sistema Prophet. Analise e retorne apenas JSON com: summary (max 200 chars), main_subject (3-5 palavras), cycle (um de: conflito, economico, politico, social, tecnologico, ambiental, cultural), political_bias (um de: esquerda, centro-esquerda, centro, centro-direita, direita, indefinido), sentiment (um de: positivo, neutro, negativo), confidence (0 a 1). Responda apenas com JSON válido.`;
+// Region keywords for detection
+const REGION_KEYWORDS = {
+  'BR': ['brasil', 'brazil', 'brasília', 'são paulo', 'rio de janeiro', 'sul', 'sudeste', 'nordeste', 'norte', 'centro-oeste', 'cascavel', 'curitiba', 'porto alegre', 'recife', 'salvador', 'fortaleza', 'goiânia', 'mato Grosso', 'paraná', 'santa catarina', 'paraná', 'rp0'],
+  'SAM': ['américa latina', 'latin america', 'argentina', 'chile', 'colombia', 'colômbia', 'venezuela', 'peru', 'equador', 'bolivia', 'uruguai', 'paraguai', 'guiana', 'suriname', 'mercado comum do sul', 'mercosul'],
+  'US': ['estados unidos', 'united states', 'washington', 'new york', 'trump', 'biden', 'america first', 'american'],
+  'EU': ['europa', 'european union', 'euro zone', 'alemanha', 'frança', 'french', 'germany', 'italy', 'spain', 'españa', 'portugal', 'união europeia', 'brexit'],
+  'CN': ['china', 'chinese', 'beijing', 'xi jinping', 'shanghai', 'made in china'],
+  'RU': ['russia', 'rússia', 'moscow', 'moscou', 'putin', 'ucrânia', 'ucrania', 'kremlin'],
+  'ME': ['oriente médio', 'middle east', 'israel', 'palestina', 'gaza', 'iran', 'iraque', 'arábia', 'saudita', 'hézbollah', 'hamas'],
+  'AF': ['áfrica', 'africa', 'south africa', 'egito', 'egito', 'nigéria', 'quênia', 'marrocos', 'argélia'],
+  'AS': ['ásia', 'asia', 'índia', 'india', 'japão', 'japan', 'coreia', 'korea', 'indonésia', 'indonesia', 'vietnã', 'thailand', 'malásia'],
+  'GLOBAL': ['onu', 'united nations', 'oms', 'who', 'bank', 'federal reserve', 'bond', 'imf', 'world bank', 'global'],
+};
+
+// Cycle keywords for better detection
+const CYCLE_KEYWORDS = {
+  'conflito': ['guerra', 'war', 'conflict', 'military', 'military', 'exército', 'armas', 'weapons', 'ataque', 'attack', 'terrorismo', 'terrorism', 'bomb', 'invasion', 'invasão', 'combate', 'narcotráfico', 'tráfico', 'crime organizado', 'milícia', 'gang', 'shot', 'morte', 'death', 'killed', 'murder', 'assassination'],
+  'economico': ['economia', 'economy', 'economic', 'inflação', 'inflation', 'juros', 'interest rate', 'banco central', 'central bank', 'bolsa', 'stock market', 'dólar', 'dollar', 'câmbio', 'exchange', 'gdp', 'pib', 'desemprego', 'unemployment', 'trabalho', 'jobs', 'balança comercial', 'trade', 'commodities', 'petróleo', 'oil', 'preço', 'price'],
+  'politico': ['eleição', 'election', 'voting', 'congresso', 'congress', 'senado', 'senate', 'câmara', 'house', 'deputado', 'governor', 'prefeito', 'mayor', 'partido', 'party', 'coalition', 'oposição', 'opposition', 'governo', 'government', 'palácio', 'presidency', 'candidate', 'candidato', 'voto', 'vote', 'lula', 'bolsonaro', 'maduro', 'trump', 'biden'],
+  'social': ['saúde', 'health', 'education', 'educação', 'housing', 'moradia', 'vacina', 'vaccine', 'covid', 'pandemia', 'hunger', 'fome', 'homeless', 'sem teto', 'pobreza', 'poverty', 'desigualdade', 'inequality', 'protesto', 'protest', 'manifestação', 'demonstração', 'greve', 'strike', 'salário', 'wage', 'minimum wage'],
+  'tecnologico': ['tecnologia', 'technology', 'tech', 'ai', 'inteligência artificial', 'artificial intelligence', 'startup', 'innovation', 'inovação', 'software', 'apple', 'google', 'meta', 'amazon', 'microsoft', 'tesla', 'nvidia', 'chip', 'semiconductor', 'cybersecurity', 'cibersegurança', 'hacker', 'data', 'privacy', 'privacidade'],
+  'ambiental': ['meio ambiente', 'environment', 'climate', 'clima', 'amazonia', 'amazônia', 'floresta', 'forest', 'desmatamento', 'deforestation', 'emissão', 'emission', 'carbono', 'carbon', 'energias renováveis', 'renewable energy', 'sustentabilidade', 'sustainability', 'poluição', 'pollution', 'aquecimento global', 'global warming'],
+  'cultural': ['cultura', 'culture', 'arts', 'arte', 'music', 'música', 'movie', 'filme', 'cinema', 'netflix', 'hollywood', 'entretenimento', 'entertainment', 'esporte', 'sports', 'futebol', 'football', 'olimpíadas', 'olympics', 'copa', 'world cup', 'festival', 'carnaval', 'literatura', 'literature', 'book'],
+};
+
+const SYSTEM_PROMPT = `Você é um analisador de notícias brasileiro do sistema Prophet. Analise a notícia e retorne APENAS JSON válido com:
+- summary: frase resumida do evento (max 150 chars)
+- main_subject: tema central em 3-5 palavras
+- cycle: CATEGORIA PRINCIPAL - escolha APENAS UMA:
+  * conflito: guerras, violência, crimes, narcóticos, terrorismo, mortes
+  * economico: inflação, juros, mercados, câmbio, commodities, empregos
+  * politico: eleições, governo, congresso, partidos, políticas públicas
+  * social: saúde, educação, moradia, protestos, desigualdade social
+  * tecnologico: IA, startups, big tech, inovação digital, cibersegurança
+  * ambiental: clima, desmatamento, energia renovável, sustentabilidade
+  * cultural: arte, música, filmes, esportes, entretenimento, literatura
+- region: código de região (BR=Brasil, SAM=América do Sul, US=Estados Unidos, EU=Europa, CN=China, RU=Rússia, ME=Oriente Médio, AF=África, AS=Ásia, GLOBAL=global)
+- sentiment: positivo, neutro ou negativo
+- confidence: sua confiança de 0.0 a 1.0
+
+Importante: seja específico na categoria. Se for sobre Lula ou Bolsonaro → politico. Se for sobre economia → economico. Se for sobre Amazônia ou clima → ambiental.`;
 
 // Simple hash for deduplication
 function hash(str) {
@@ -67,13 +107,47 @@ async function fetchFeed(source) {
   }
 }
 
+function detectRegion(text) {
+  const t = (text || '').toLowerCase();
+  // Check each region
+  for (const [code, keywords] of Object.entries(REGION_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (t.includes(kw.toLowerCase())) return code;
+    }
+  }
+  // Default based on source
+  return 'BR';
+}
+
+function detectCycleFromText(text) {
+  const t = (text || '').toLowerCase();
+  const scores = {};
+  for (const [cycle, keywords] of Object.entries(CYCLE_KEYWORDS)) {
+    scores[cycle] = 0;
+    for (const kw of keywords) {
+      if (t.includes(kw.toLowerCase())) scores[cycle]++;
+    }
+  }
+  const max = Math.max(...Object.values(scores));
+  if (max > 0) {
+    return Object.entries(scores).find(([, v]) => v === max)[0];
+  }
+  return 'politico'; // fallback
+}
+
 async function analyzeWithOllama(title, content, log) {
   if (!OLLAMA_API_KEY) { log.push('   ⚠️ Sem Ollama key'); return null; }
 
+  const combinedText = `${title} ${(content || '').slice(0, 300)}`;
+  const detectedCycle = detectCycleFromText(combinedText);
+  const detectedRegion = detectRegion(combinedText);
+  
+  log.push(`   🔍 Ciclo detectado: ${detectedCycle} | Região: ${detectedRegion}`);
+
   try {
-    log.push(`   🤖 Analisando: "${title.slice(0, 30)}"`);
+    log.push(`   🤖 Analisando: "${title.slice(0, 30)}..."`);
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 10000);
+    const tid = setTimeout(() => controller.abort(), 25000); // Increased to 25s
 
     const response = await fetch('https://ollama.com/api/chat', {
       method: 'POST',
@@ -85,24 +159,52 @@ async function analyzeWithOllama(title, content, log) {
         model: OLLAMA_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 200)}. Responda apenas com JSON.` }
+          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}\n\nRetorne APENAS JSON válido.` }
         ],
         format: 'json',
-        options: { temperature: 0.3, num_predict: 150 },
+        options: { temperature: 0.2, num_predict: 200 },
         stream: false,
       }),
       signal: controller.signal,
     });
     clearTimeout(tid);
     log.push(`   📡 Ollama status: ${response.status}`);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const err = await response.text();
+      log.push(`   ❌ Ollama error: ${err.slice(0, 100)}`);
+      return null;
+    }
     const data = await response.json();
     const content_str = (data.message?.content || '{}').replace(/```json\n?|\n?```/g, '').trim();
-    log.push(`   📝 Content: ${content_str.slice(0, 60)}`);
-    return JSON.parse(content_str);
+    log.push(`   📝 Response: ${content_str.slice(0, 80)}`);
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(content_str);
+    } catch (e) {
+      log.push(`   ❌ JSON parse error`);
+      return null;
+    }
+    
+    // Override with detected values if Ollama returned generic
+    if (!parsed.region || parsed.region === 'BR' || parsed.region === 'SAM') {
+      parsed.region = detectedRegion;
+    }
+    
+    return parsed;
   } catch (e) {
-    log.push(`   ❌ Erro: ${e.message}`);
-    return null;
+    log.push(`   ❌ Erro: ${e.name}: ${e.message}`);
+    
+    // Fallback: return basic analysis based on text detection
+    log.push(`   🔄 Fallback: usando detecção por palavras-chave`);
+    return {
+      summary: title.slice(0, 120),
+      main_subject: title.split(' ').slice(0, 4).join(' '),
+      cycle: detectedCycle,
+      region: detectedRegion,
+      sentiment: 'neutro',
+      confidence: 0.4,
+    };
   }
 }
 
@@ -122,36 +224,56 @@ function normalizeCycle(cycle) {
 }
 
 async function upsertStory(article, analysis, log) {
-  // Group by main_subject to create story
   const subject = analysis.main_subject || article.title.slice(0, 50);
-  const storyHash = hash(subject);
-  
-  // Check if story with same subject exists
-  const existingRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/stories?main_subject=ilike.*${encodeURIComponent(subject.slice(0, 30))}*&limit=1`,
-    { headers }
-  );
-  let existing = [];
-  try { existing = await existingRes.json(); } catch { existing = []; }
-  
   const cycle = normalizeCycle(analysis.cycle);
+  const region = analysis.region || detectRegion(article.title + ' ' + (article.content || ''));
+  
   const sentimentMap = { 'positivo': 'up', 'negativo': 'down', 'neutro': 'stable' };
   const sentiment_trend = sentimentMap[analysis.sentiment] || 'stable';
+  
+  // Find existing story by similar subject
+  const searchRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/stories?select=id,main_subject,article_count,cycle,region&order=updated_at.desc&limit=20`,
+    { headers }
+  );
+  let existingStories = [];
+  try { existingStories = await searchRes.json(); } catch { existingStories = []; }
+  if (!Array.isArray(existingStories)) existingStories = [];
+  
+  // Find similar story (simple substring match)
+  let existingStory = null;
+  for (const s of existingStories) {
+    const sSubject = (s.main_subject || '').toLowerCase();
+    const aSubject = subject.toLowerCase();
+    if (sSubject.includes(aSubject.slice(0, 20)) || aSubject.includes(sSubject.slice(0, 20))) {
+      existingStory = s;
+      break;
+    }
+    // Also match by cycle + region combination
+    if (s.cycle === cycle && s.region === region) {
+      // Check first 3 words of subject
+      const sWords = sSubject.split(' ').slice(0, 3).join(' ');
+      const aWords = aSubject.split(' ').slice(0, 3).join(' ');
+      if (sWords.length > 5 && aWords.includes(sWords.slice(0, 10))) {
+        existingStory = s;
+        break;
+      }
+    }
+  }
   
   const storyData = {
     title: article.title.slice(0, 500),
     main_subject: subject.slice(0, 100),
     cycle,
+    region,
     summary: analysis.summary || null,
     sentiment_trend,
-    article_count: 1,
     updated_at: new Date().toISOString(),
   };
   
   let storyId = null;
-  if (Array.isArray(existing) && existing.length > 0) {
+  if (existingStory) {
     // Update existing story
-    const existingStory = existing[0];
     storyId = existingStory.id;
     await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${storyId}`, {
       method: 'PATCH',
@@ -161,7 +283,7 @@ async function upsertStory(article, analysis, log) {
         article_count: (existingStory.article_count || 1) + 1,
       }),
     });
-    log.push(`   📖 Story atualizada: "${subject.slice(0, 30)}" (${cycle})`);
+    log.push(`   📖 Story #${storyId} atualizada: "${subject.slice(0, 25)}" [${cycle}/${region}]`);
   } else {
     // Create new story
     const newStoryRes = await fetch(`${SUPABASE_URL}/rest/v1/stories`, {
@@ -169,14 +291,13 @@ async function upsertStory(article, analysis, log) {
       headers: { ...headers, Prefer: 'return=representation' },
       body: JSON.stringify({
         ...storyData,
-        region: 'SAM',
         started_at: new Date().toISOString(),
       }),
     });
     let newStory = null;
     try { newStory = await newStoryRes.json(); } catch { newStory = null; }
     storyId = newStory?.[0]?.id || newStory?.id || null;
-    log.push(`   🆕 Story criada: "${subject.slice(0, 30)}" (${cycle})`);
+    log.push(`   🆕 Story criada: "${subject.slice(0, 25)}" [${cycle}/${region}]`);
   }
   return storyId;
 }
@@ -236,24 +357,30 @@ export default async function handler(req, res) {
 
     // 5. Analyze with Ollama
     let storiesCreated = 0;
+    let articlesAnalyzed = 0;
     if (OLLAMA_API_KEY) {
       log.push('🧠 Analisando com Ollama...');
       
+      // Get pending articles with content, randomized order
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url,source_id&limit=1&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&content=not.is.null&content=neq.%22%22&select=id,title,content,url,source_id&limit=5`,
         { headers }
       );
       let pending = [];
       try { pending = await pendingRes.json(); } catch { pending = []; }
+      if (!Array.isArray(pending)) pending = [];
       
-      log.push(`   📊 Pendentes: ${pending.length}`);
+      log.push(`   📊 Artigos pendentes com conteúdo: ${pending.length}`);
 
       for (const article of pending) {
         const elapsed = Date.now() - startTime;
-        if (elapsed > 8000) { log.push('   ⏱️ Timeout, parando'); break; }
+        if (elapsed > 55000) { log.push('   ⏱️ Timeout de tempo total (55s), parando'); break; }
 
         const analysis = await analyzeWithOllama(article.title, article.content, log);
-        if (analysis && analysis.summary) {
+        
+        if (analysis) {
+          articlesAnalyzed++;
+          
           // Update article
           await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`, {
             method: 'PATCH',
@@ -276,21 +403,40 @@ export default async function handler(req, res) {
             storiesCreated++;
           }
           
-          log.push(`   ✅ "${article.title.slice(0, 35)}..." → ${normalizeCycle(analysis.cycle)}`);
+          log.push(`   ✅ [${analysis.cycle}/${analysis.region}] "${article.title.slice(0, 30)}..."`);
         }
+        
+        // Small delay between requests to avoid rate limit
+        await new Promise(r => setTimeout(r, 1000));
       }
       log.push(`   📖 Stories criadas/atualizadas: ${storiesCreated}`);
+      log.push(`   📝 Artigos analisados: ${articlesAnalyzed}`);
     }
 
     // 6. Stats
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} | Stories: ${Array.isArray(storiesRes) ? storiesRes.length : '?'}`);
-    log.push(`⏱️ Tempo: ${Date.now() - startTime}ms`);
+    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,cycle,region`, { headers }).then(r => r.json()).catch(() => []);
+    const analyzedRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?status=eq.analyzed&select=id`, { headers }).then(r => r.json()).catch(() => []);
+    
+    log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} total | ${Array.isArray(analyzedRes) ? analyzedRes.length : '?'} analisados`);
+    log.push(`📊 Stories: ${Array.isArray(storiesRes) ? storiesRes.length : '?'}`);
+    
+    if (Array.isArray(storiesRes) && storiesRes.length > 0) {
+      const cycles = {};
+      const regions = {};
+      for (const s of storiesRes) {
+        cycles[s.cycle] = (cycles[s.cycle] || 0) + 1;
+        regions[s.region] = (regions[s.region] || 0) + 1;
+      }
+      log.push(`   Ciclos: ${JSON.stringify(cycles)}`);
+      log.push(`   Regiões: ${JSON.stringify(regions)}`);
+    }
+    
+    log.push(`⏱️ Tempo total: ${Date.now() - startTime}ms`);
 
-    return res.status(200).json({ success: true, log, articlesCollected: allItems.length, storiesCreated });
+    return res.status(200).json({ success: true, log, articlesCollected: allItems.length, storiesCreated, articlesAnalyzed });
   } catch (e) {
-    log.push(`❌ Erro: ${e.message}`);
+    log.push(`❌ Erro fatal: ${e.message}`);
     return res.status(500).json({ success: false, log, error: e.message });
   }
 }
