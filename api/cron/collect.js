@@ -162,7 +162,7 @@ export default async function handler(req, res) {
       log.push('🧠 Analisando com Ollama...');
       
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content&limit=3&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content&limit=1&order=published_at.desc`,
         { headers }
       );
       let pending = [];
@@ -173,7 +173,7 @@ export default async function handler(req, res) {
       let analyzedCount = 0;
       for (const article of pending) {
         const elapsed = Date.now() - startTime;
-        if (elapsed > 7000) { log.push('   ⏱️ Timeout approaching, stopping analysis'); break; }
+        if (elapsed > 8000) { log.push('   ⏱️ Timeout, parando'); break; }
 
         const analysis = await analyzeWithOllama(article.title, article.content);
         if (analysis) {
@@ -192,8 +192,7 @@ export default async function handler(req, res) {
             }),
           });
           analyzedCount++;
-          log.push(`   ✅ "${article.title.slice(0, 40)}..." → cycle=${analysis.cycle}`);
-          await new Promise(r => setTimeout(r, 500));
+          log.push(`   ✅ ${article.title.slice(0, 35)}... → ${analysis.cycle}`);
         }
       }
       log.push(`   ✅ Analisados: ${analyzedCount}`);
