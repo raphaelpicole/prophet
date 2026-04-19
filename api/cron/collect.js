@@ -88,7 +88,6 @@ async function analyzeWithOllama(title, content, log) {
   }
 
   try {
-    log.push(`   🤖 Analisando: "${title.slice(0, 50)}..."`);
     const response = await fetch('https://ollama.com/api/chat', {
       method: 'POST',
       headers: {
@@ -102,10 +101,7 @@ async function analyzeWithOllama(title, content, log) {
           { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 500)}` }
         ],
         format: 'json',
-        options: {
-          temperature: 0.3,
-          num_predict: 350,
-        },
+        options: { temperature: 0.3, num_predict: 350 },
         stream: false,
       }),
     });
@@ -117,16 +113,14 @@ async function analyzeWithOllama(title, content, log) {
 
     const data = await response.json();
     const content_str = data.message?.content || '{}';
-    log.push(`   ✅ Ollama response: ${content_str.slice(0, 100)}`);
     
     try {
       return JSON.parse(content_str);
     } catch {
-      log.push(`   ❌ Failed to parse Ollama response`);
       return null;
     }
   } catch (e) {
-    log.push(`   ❌ Ollama request failed: ${e.message}`);
+    log.push(`   ❌ Ollama failed: ${e.message}`);
     return null;
   }
 }
@@ -215,7 +209,7 @@ export default async function handler(req, res) {
       log.push('🧠 Analisando artigos pendentes com Ollama Cloud...');
       
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url&limit=20&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url&limit=5&order=published_at.desc`,
         { headers }
       );
       let pending = [];
