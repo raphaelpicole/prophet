@@ -197,12 +197,7 @@ export default async function handler(req, res) {
             headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               status: 'analyzed',
-              main_subject: analysis.main_subject || null,
-              cycle: normalizeCycle(analysis.cycle),
               summary: analysis.summary || null,
-              political_bias: analysis.political_bias || null,
-              sentiment: analysis.sentiment || null,
-              confidence: analysis.confidence || null,
             }),
           });
           analyzedCount++;
