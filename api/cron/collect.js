@@ -10,32 +10,18 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
 
 const RSS_SOURCES = [
-  { slug: 'g1', name: 'G1', feed: 'https://g1.globo.com/rss/g1/brasil/', sourceId: null },
-  { slug: 'folha', name: 'Folha', feed: 'https://feeds.folha.uol.com.br/emcimahmais/rss091.xml', sourceId: null },
-  { slug: 'uol', name: 'UOL', feed: 'https://rss.uol.com.br/mostrecent/index.xml', sourceId: null },
-  { slug: 'estadao', name: 'Estadão', feed: 'https://www.estadao.com.br/rss/', sourceId: null },
-  { slug: 'cnn', name: 'CNN Brasil', feed: 'https://www.cnnbrasil.com.br/feed/', sourceId: null },
-  { slug: 'bbc', name: 'BBC Brasil', feed: 'https://www.bbc.com/portuguese/feed/rss.xml', sourceId: null },
-  { slug: 'metropoles', name: 'Metropoles', feed: 'https://www.metropoles.com/arqs/rss.xml', sourceId: null },
+  { slug: 'g1', name: 'G1', feed: 'https://g1.globo.com/rss/g1/brasil/' },
+  { slug: 'folha', name: 'Folha', feed: 'https://feeds.folha.uol.com.br/emcimahmais/rss091.xml' },
+  { slug: 'uol', name: 'UOL', feed: 'https://rss.uol.com.br/mostrecent/index.xml' },
+  { slug: 'estadao', name: 'Estadão', feed: 'https://www.estadao.com.br/rss/' },
+  { slug: 'cnn', name: 'CNN Brasil', feed: 'https://www.cnnbrasil.com.br/feed/' },
+  { slug: 'bbc', name: 'BBC Brasil', feed: 'https://www.bbc.com/portuguese/feed/rss.xml' },
+  { slug: 'metropoles', name: 'Metropoles', feed: 'https://www.metropoles.com/arqs/rss.xml' },
 ];
 
-const SYSTEM_PROMPT = `Você é um analisador de notícias do sistema Prophet. Analise o título e conteúdo e retorne APENAS um objeto JSON válido.
+const SYSTEM_PROMPT = `Você é um analisador de notícias do sistema Prophet. Analise e retorne apenas JSON com: summary (max 200 chars), main_subject (3-5 palavras), cycle (um de: conflito, economico, politico, social, tecnologico, ambiental, cultural), political_bias (um de: esquerda, centro-esquerda, centro, centro-direita, direita, indefinido), sentiment (um de: positivo, neutro, negativo), confidence (0 a 1). Responda apenas com JSON válido.`;
 
-REGRAS:
-1. Responda SEMPRE em português do Brasil
-2. Retorne APENAS o JSON, sem markdown, sem explicações extras
-3. Seja objetivo e imparcial na análise
-
-Campos obrigatórios:
-- summary: resumo em 1-2 frases (máximo 200 caracteres)
-- main_subject: assunto principal em 3-5 palavras
-- cycle: um de [conflito, pandemia, economico, politico, social, tecnologico, ambiental, cultural]
-- political_bias: um de [esquerda, centro-esquerda, centro, centro-direita, direita, indefinido]
-- sentiment: um de [positivo, neutro, negativo]
-- confidence: número entre 0 e 1
-
-Responda apenas com JSON válido.`;
-
+// Simple hash for deduplication
 function hash(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -81,13 +67,13 @@ async function fetchFeed(source) {
   }
 }
 
-async function analyzeWithOllama(title, content, log) {
-  if (!OLLAMA_API_KEY) {
-    log.push('   ⚠️ Ollama API key não configurada');
-    return null;
-  }
+async function analyzeWithOllama(title, content) {
+  if (!OLLAMA_API_KEY) return null;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch('https://ollama.com/api/chat', {
       method: 'POST',
       headers: {
@@ -98,41 +84,24 @@ async function analyzeWithOllama(title, content, log) {
         model: OLLAMA_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 500)}` }
+          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}` }
         ],
         format: 'json',
-        options: { temperature: 0.3, num_predict: 350 },
+        options: { temperature: 0.3, num_predict: 250 },
         stream: false,
       }),
+      signal: controller.signal,
     });
 
-    if (!response.ok) {
-      log.push(`   ❌ Ollama error: ${response.status}`);
-      return null;
-    }
+    clearTimeout(timeout);
 
+    if (!response.ok) return null;
     const data = await response.json();
     const content_str = data.message?.content || '{}';
-    
-    try {
-      return JSON.parse(content_str);
-    } catch {
-      return null;
-    }
+    return JSON.parse(content_str);
   } catch (e) {
-    log.push(`   ❌ Ollama failed: ${e.message}`);
     return null;
   }
-}
-
-async function logError(level, source, message, context) {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
-      method: 'POST',
-      headers: { ...headers, Prefer: 'return=representation' },
-      body: JSON.stringify({ level, source, message, context, resolved: false }),
-    });
-  } catch (_) {}
 }
 
 export default async function handler(req, res) {
@@ -141,57 +110,41 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const log = [];
+  const startTime = Date.now();
 
   try {
-    // 1. Busca sources do banco
+    // 1. Get sources
     log.push('📥 Carregando fontes...');
-    const sourcesRes = await fetch(`${SUPABASE_URL}/rest/v1/sources?select=id,slug,name,active&active=eq.true`, { headers });
-    log.push(`   Sources status: ${sourcesRes.status}`);
-    let sources;
-    try {
-      sources = await sourcesRes.json();
-    } catch (e) {
-      log.push(`   ❌ Failed to parse sources: ${e.message}`);
-      sources = [];
-    }
-    log.push(`   Sources type: ${typeof sources}, isArray: ${Array.isArray(sources)}`);
-    
-    if (!Array.isArray(sources)) {
-      log.push('   ⚠️ Sources não é array — usando fallback');
-      sources = [];
-    } else {
-      log.push(`   ✅ Fontes ativas: ${sources.length}`);
-    }
+    const sourcesRes = await fetch(`${SUPABASE_URL}/rest/v1/sources?select=id,slug&active=eq.true&limit=20`, { headers });
+    let sources = [];
+    try { sources = await sourcesRes.json(); } catch { sources = []; }
+    if (!Array.isArray(sources)) sources = [];
+    log.push(`   ✅ Fontes ativas: ${sources.length}`);
 
-    // 2. Coleta RSS em paralelo
-    log.push('🔄 Coletando RSS de todas as fontes...');
+    // 2. Fetch RSS
+    log.push('🔄 Coletando RSS...');
     const results = await Promise.allSettled(RSS_SOURCES.map(s => fetchFeed(s)));
     const allItems = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-
-    log.push(`   📰 Artigos RSS coletados: ${allItems.length}`);
+    log.push(`   📰 Artigos RSS: ${allItems.length}`);
 
     if (allItems.length === 0) {
-      log.push('⚠️ Nenhum artigo coletado (verifique feeds RSS)');
       return res.status(200).json({ success: true, log, articles: 0 });
     }
 
-    // 3. Dedup + insert
-    log.push('🔍 Deduplicando e inserindo...');
-
+    // 3. Build slug→id map
     const slugToId = {};
-    for (const s of sources) {
-      slugToId[s.slug] = s.id;
-    }
+    for (const s of sources) { slugToId[s.slug] = s.id; }
 
+    // 4. Insert articles
+    log.push('🔍 Inserindo...');
     let insertedCount = 0;
     for (const item of allItems) {
       const h = hash(item.title + item.url);
-      const sourceId = slugToId[item.sourceSlug] || null;
       const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
         body: JSON.stringify({
-          source_id: sourceId,
+          source_id: slugToId[item.sourceSlug] || null,
           title: item.title.slice(0, 500),
           url: item.url,
           content: item.content?.slice(0, 2000) || '',
@@ -202,77 +155,59 @@ export default async function handler(req, res) {
       });
       if (r.ok) insertedCount++;
     }
-    log.push(`   ✅ Inseridos: ${insertedCount} artigos`);
+    log.push(`   ✅ Inseridos: ${insertedCount}`);
 
-    // 4. Análise LLM com Ollama Cloud
+    // 5. Analyze with Ollama (max 3 articles to avoid timeout)
     if (OLLAMA_API_KEY) {
-      log.push('🧠 Analisando artigos pendentes com Ollama Cloud...');
+      log.push('🧠 Analisando com Ollama...');
       
       const pendingRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content,url&limit=5&order=published_at.desc`,
+        `${SUPABASE_URL}/rest/v1/raw_articles?status=eq.pending&select=id,title,content&limit=3&order=published_at.desc`,
         { headers }
       );
       let pending = [];
-      try {
-        pending = await pendingRes.json();
-      } catch (e) {
-        log.push(`   ❌ Failed to parse pending: ${e.message}`);
-      }
+      try { pending = await pendingRes.json(); } catch { pending = []; }
       
-      log.push(`   📊 Artigos pendentes: ${pending.length}`);
-      
-      if (pending.length > 0) {
-        let analyzedCount = 0;
-        for (const article of pending) {
-          const analysis = await analyzeWithOllama(article.title, article.content, log);
-          
-          if (analysis) {
-            const updateRes = await fetch(
-              `${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`,
-              {
-                method: 'PATCH',
-                headers: { ...headers, Prefer: 'return=representation' },
-                body: JSON.stringify({
-                  status: 'analyzed',
-                  analysis: analysis,
-                  main_subject: analysis.main_subject || null,
-                  cycle: analysis.cycle || null,
-                  summary: analysis.summary || null,
-                  political_bias: analysis.political_bias || null,
-                  sentiment: analysis.sentiment || null,
-                  confidence: analysis.confidence || null,
-                }),
-              }
-            );
-            
-            if (updateRes.ok) analyzedCount++;
-            await new Promise(r => setTimeout(r, 1500));
-          }
+      log.push(`   📊 Pendentes: ${pending.length}`);
+
+      let analyzedCount = 0;
+      for (const article of pending) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed > 7000) { log.push('   ⏱️ Timeout approaching, stopping analysis'); break; }
+
+        const analysis = await analyzeWithOllama(article.title, article.content);
+        if (analysis) {
+          await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=eq.${article.id}`, {
+            method: 'PATCH',
+            headers: { ...headers, Prefer: 'return=representation' },
+            body: JSON.stringify({
+              status: 'analyzed',
+              analysis: analysis,
+              main_subject: analysis.main_subject || null,
+              cycle: analysis.cycle || null,
+              summary: analysis.summary || null,
+              political_bias: analysis.political_bias || null,
+              sentiment: analysis.sentiment || null,
+              confidence: analysis.confidence || null,
+            }),
+          });
+          analyzedCount++;
+          log.push(`   ✅ "${article.title.slice(0, 40)}..." → cycle=${analysis.cycle}`);
+          await new Promise(r => setTimeout(r, 500));
         }
-        
-        log.push(`   ✅ Analisados: ${analyzedCount} artigos`);
       }
-    } else {
-      log.push('🧠 Ollama API key não configurada — análise desabilitada');
+      log.push(`   ✅ Analisados: ${analyzedCount}`);
     }
 
-    // 5. Count final
+    // 6. Stats
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    log.push(`📊 Total artigos no banco: ${Array.isArray(countRes) ? countRes.length : '?'}`);
-
     const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    log.push(`📖 Total stories: ${Array.isArray(storiesRes) ? storiesRes.length : '?'}`);
+    log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} | Stories: ${Array.isArray(storiesRes) ? storiesRes.length : '?'}`);
+    log.push(`⏱️ Tempo: ${Date.now() - startTime}ms`);
 
-    log.push('✅ Pipeline completa!');
-    return res.status(200).json({
-      success: true, log,
-      articlesCollected: allItems.length,
-      timestamp: new Date().toISOString(),
-    });
-
+    return res.status(200).json({ success: true, log, articlesCollected: allItems.length });
   } catch (e) {
     log.push(`❌ Erro: ${e.message}`);
-    await logError('error', 'cron-collect', e.message, { stack: e.stack });
     return res.status(500).json({ success: false, log, error: e.message });
   }
 }
