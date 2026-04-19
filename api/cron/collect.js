@@ -84,10 +84,10 @@ async function analyzeWithOllama(title, content) {
         model: OLLAMA_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}` }
+          { role: 'user', content: `Título: ${title}\nConteúdo: ${(content || '').slice(0, 300)}. Responda apenas com JSON.` }
         ],
         format: 'json',
-        options: { temperature: 0.3, num_predict: 250 },
+        options: { temperature: 0.3, num_predict: 200 },
         stream: false,
       }),
       signal: controller.signal,
@@ -102,6 +102,21 @@ async function analyzeWithOllama(title, content) {
   } catch (e) {
     return null;
   }
+}
+
+function normalizeCycle(cycle) {
+  const map = {
+    'conflito': 'conflito', 'conflitos': 'conflito',
+    'economico': 'economico', 'econômico': 'economico', 'economia': 'economico',
+    'politico': 'politico', 'político': 'politico', 'política': 'politico',
+    'social': 'social',
+    'tecnologico': 'tecnologico', 'tecnológico': 'tecnologico', 'tecnologia': 'tecnologico',
+    'ambiental': 'ambiental', 'meio ambiente': 'ambiental',
+    'cultural': 'cultural', 'cultura': 'cultural',
+    'geopolítica': 'conflito', 'geopolitico': 'conflito',
+  };
+  const c = (cycle || '').toLowerCase();
+  return map[c] || 'politico';
 }
 
 export default async function handler(req, res) {
@@ -182,9 +197,8 @@ export default async function handler(req, res) {
             headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               status: 'analyzed',
-              analysis: analysis,
               main_subject: analysis.main_subject || null,
-              cycle: analysis.cycle || null,
+              cycle: normalizeCycle(analysis.cycle),
               summary: analysis.summary || null,
               political_bias: analysis.political_bias || null,
               sentiment: analysis.sentiment || null,
