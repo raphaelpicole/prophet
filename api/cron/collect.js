@@ -81,7 +81,7 @@ async function fetchFeed(source) {
   }
 }
 
-async function analyzeWithOllama(title, content) {
+async function analyzeWithOllama(title, content, log) {
   if (!OLLAMA_API_KEY) {
     log.push('   ⚠️ Ollama API key não configurada');
     return null;
@@ -230,7 +230,7 @@ export default async function handler(req, res) {
       if (pending.length > 0) {
         let analyzedCount = 0;
         for (const article of pending) {
-          const analysis = await analyzeWithOllama(article.title, article.content);
+          const analysis = await analyzeWithOllama(article.title, article.content, log);
           
           if (analysis) {
             const updateRes = await fetch(
