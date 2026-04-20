@@ -4,7 +4,8 @@
   "buildCommand": "echo 'Using prebuilt Flutter assets'",
   "outputDirectory": "app/build/web",
   "routes": [
-    { "src": "/api/collect", "dest": "/api/cron/collect.js" },
+    { "src": "/api/cron/collect", "dest": "/api/collect.js" },
+    { "src": "/api/collect", "dest": "/api/collect.js" },
     { "src": "/api/regions", "dest": "/api/misc.js" },
     { "src": "/api/sources", "dest": "/api/misc.js" },
     { "src": "/api/hello", "dest": "/api/misc.js" },
