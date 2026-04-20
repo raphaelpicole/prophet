@@ -1,6 +1,6 @@
 # Prophet — Cronograma do Projeto
 
-> Última atualização: 2026-04-18
+> Última atualização: 2026-04-20
 
 ---
 
@@ -40,12 +40,13 @@
 - [x] `/api/cron/collect` — RSS → Supabase com dedup real
 - [x] `stories` table populada + grouping (parcial)
 - [x] `regions` e `v_source_stats` criados no banco real
-- [ ] `analysis` table populada via LLM (`LLM_API_KEY` needed)
+- [x] **Ollama Cloud** adaptado — `OLLAMA_API_KEY` configurada no Vercel, usa `gemma4:31b`
+- [ ] `analysis` table populada via LLM
 - [ ] `stories` grouping automático via `grouper.ts` ( wiring pendente)
 
 ---
 
-## ✅ Fase 5 — Melhorias (18/abr à tarde)
+## ✅ Fase 5 — Melhorias (18-20/abr)
 - [x] **Filtro por região** no RadarScreen → chips com região + cor
 - [x] **PWA** — manifest.json + iOS meta tags (add to home screen)
 - [x] **Story timeline** — gráfico de evolução temporal com fl_chart
@@ -54,8 +55,21 @@
 - [x] **Twitter/X share** — botão partilhar story (url_launcher)
 - [x] **Responsivo** — side nav em desktop (>800px), bottom nav em mobile
 - [x] **Monitorização** — logs table + logError em todos os endpoints + ConfigScreen
-- [ ] **Docker local** — collect sem Vercel
-- [ ] **Push notifications** — web push
+- [x] **Admin tab** — 3 abas (Ações/Tabelas/Logs), 9 tabelas, 5 botões de acção
+- [x] **ProphetScreen detail** — bottom sheet ao clicar previsão com probabilidade, Brier score, model_used
+- [x] **Story article preview** — cards expandem na web mostrando preview de artigos
+- [x] **Fontes internacionais** — 6 novas fontes (AP News, Al Jazeera, France24, DW, RTÉ, NBC)
+- [x] **Foreign Media section** no AnalysisScreen com fontes estrangeiras
+
+---
+
+## 📋 Backlog
+- Docker local para collect (sem Vercel) — REMOVIDO
+- Push notifications (web push) — REMOVIDO
+- LLM analysis pipeline (necessita `LLM_API_KEY` no Vercel env vars)
+- Story grouping automático via grouper.ts
+- Agregação de artigos (ideal: 5-15 por story)
+- Mais fontes RSS
 
 ---
 
@@ -66,41 +80,45 @@ Flutter Web (app/)
   └─ ApiService → https://prophet-olive.vercel.app/api
 
 Vercel (serverless functions)
-  └─ api/stories.js     → Supabase stories (com filtro region)
+  └─ api/stories.js     → Supabase stories (com preview_articles, filtro region)
   └─ api/story.js       → Supabase articles (via story_articles junction)
   └─ api/sources.js     → Supabase sources (v_source_stats view)
-  └─ api/regions.js     → mock regions
   └─ api/predictions.js → predictions table (track record real)
   └─ api/indicators.js  → agregações Supabase
   └─ api/logs.js        → logs table (monitorização)
-  └─ api/cron/collect.js → RSS → Supabase pipeline
+  └─ api/admin/tables.js → todas as tabelas com paginação
+  └─ api/admin/actions.js → botões de acção (collect, analyze, group, cleanup, status)
+  └─ api/cron/collect.js → pipeline completo (16 fontes: 10 BR + 6 internacional)
 
 Supabase (banco)
-  └─ raw_articles (✔ 283+ artigos)
-  └─ story_articles (✔ junction table)
-  └─ sources (✔ 10 fontes ativas)
-  └─ stories (✔ 20 stories com region + cycle)
-  └─ regions (✔ 8 regiões seed)
-  └─ v_source_stats (✔ view com stats reais)
-  └─ predictions (✔ 8 previsões, 71% accuracy, Brier 0.21)
-  └─ logs (✔ monitoramento de erros)
+  └─ raw_articles (280+ artigos)
+  └─ story_articles (junction table)
+  └─ sources (16 fontes: 10 BR + 6 internacional)
+  └─ stories (30 stories com region + cycle)
+  └─ regions (8 regiões seed)
+  └─ v_source_stats (view com stats reais)
+  └─ predictions (8 previsões, 71% accuracy, Brier 0.21)
+  └─ logs (monitorização de erros)
   └─ analysis (⚠ pendente — LLM pipeline)
+  └─ entities (⚠ pendente — LLM pipeline)
 ```
 
 ---
 
 ## 🔑 Notas Importantes
 - **Production URL**: https://prophet-olive.vercel.app
-- **Token Mapbox**: commitado (client-safe, pk.eyJ1...)
-- **SUPABASE_KEY**: hardcoded nos API files (viaja no build)
-- **RLS**: tabelas predictions e logs têm policies para anon insert/read
-- **Monitorização**: todos os endpoints têm logError() que regista no banco
-- **Filtro região**: stories.region populada com 'SAM' (América do Sul)
+- **Repo**: github.com/raphaelpicole/prophet
+- **OLLAMA_API_KEY**: configurada no Vercel (gemma4:31b)
+- **SUPABASE_KEY**: hardcoded nos API files
+- **RLS**: tabelas predictions e logs com policies para anon insert/read
+- **Monitorização**: logError em todos os endpoints + ConfigScreen
 
 ---
 
-## 📋 Backlog
-- Docker local para collect (sem Vercel)
-- Push notifications (web push)
-- LLM analysis pipeline (necessita `LLM_API_KEY` no Vercel env vars)
-- Story grouping automático via grouper.ts
+## 📊 Fontes Ativas (16)
+
+### Brasil (10)
+G1, Folha de S.Paulo, UOL, Estadão, O Globo, BBC News, CNN Brasil, ICL Notícias, Metropoles, Reuters
+
+### Internacional (6)
+AP News, Al Jazeera, France 24, DW English, RTÉ News, NBC News
