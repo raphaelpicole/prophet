@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "project": "prophet",
   "installCommand": "cd server && npm install",
   "buildCommand": "bash build-frontend.sh",
   "outputDirectory": "app/build/web",
