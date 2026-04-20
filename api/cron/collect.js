@@ -28,6 +28,25 @@ Retorne APENAS JSON valido com:
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
 
+// Sports keywords for exclusion (don't show sports news in Prophet)
+const SPORTS_KEYWORDS = [
+  'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
+  'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
+  'nba', 'basquete', 'basketball', 'vôlei', 'volleyball', 'tênis', 'tennis', 'golfe', 'golf',
+  'f1', 'fórmula 1', 'formula 1', 'moto gp', 'nascar', 'automobilismo',
+  'lance', 'globoesporte', 'ge.globo', 'esporte', 'sport', 'sports',
+  'paulistão', 'mineirão', 'copa do brasil', 'campeonato brasileiro',
+  'real madrid', 'barcelona', 'messi', 'cr7', 'ronaldo', 'neymar',
+  'transferência', 'mercado da bola', 'contrato', 'renovação',
+  'corinthians', 'flamengo', 'palmeiras', 'são paulo', 'atlético', 'grêmio', 'internacional',
+  'série a', 'serie a', 'liga dos campeões',
+];
+
+function isSportsArticle(title, content) {
+  const text = `${title} ${content || ''}`.toLowerCase();
+  return SPORTS_KEYWORDS.some(kw => text.includes(kw));
+}
+
 const RSS_SOURCES = [
   { slug: 'g1', name: 'G1', feed: 'https://g1.globo.com/rss/g1/brasil/' },
   { slug: 'folha', name: 'Folha', feed: 'https://feeds.folha.uol.com.br/emcimahmais/rss091.xml' },
@@ -36,6 +55,9 @@ const RSS_SOURCES = [
   { slug: 'cnn', name: 'CNN Brasil', feed: 'https://www.cnnbrasil.com.br/feed/' },
   { slug: 'bbc', name: 'BBC Brasil', feed: 'https://www.bbc.com/portuguese/feed/rss.xml' },
   { slug: 'metropoles', name: 'Metropoles', feed: 'https://www.metropoles.com/arqs/rss.xml' },
+  { slug: 'reuters', name: 'Reuters World', feed: 'https://feeds.reuters.com/reuters/world' },
+  { slug: 'apnews', name: 'AP News', feed: 'https://rsshub.app/apnews/topics/apf-topnews' },
+  { slug: 'bbcworld', name: 'BBC World', feed: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
 ];
 
 // Region keywords for detection
@@ -242,6 +264,95 @@ function normalizeCycle(cycle) {
   return map[c] || 'politico';
 }
 
+// Stopwords for keyword extraction
+const STOPWORDS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas',
+  'um', 'uma', 'uns', 'umas', 'o', 'a', 'e', 'é', 'que', 'os', 'as',
+  'ao', 'aos', 'pelo', 'pela', 'pelos', 'pelas',
+  'por', 'mais', 'ainda', 'já', 'muito', 'pouco',
+  'esse', 'essa', 'este', 'esta', 'isso', 'isto',
+  'entre', 'sobre', 'após', 'ante', 'sob', 'ante',
+  'seu', 'sua', 'seus', 'suas', 'se', 'meu', 'minha',
+  'foi', 'ser', 'são', 'está', 'estão', 'era', 'eram',
+  'tem', 'tem', 'têm', 'há', 'tinha', 'tinham',
+  'como', 'mas', 'ou', 'porque', 'quando', 'onde', 'quem', 'qual', 'quais',
+  'não', 'nunca', 'sim', 'só', 'também',
+  'até', 'desde', 'durante', 'sem',
+]);
+
+// Normalize title: lowercase, remove punctuation/numbers, extra spaces
+function normalizeTitle(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\sàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\-]/gi, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Extract 3-5 meaningful keywords from title (excluding stopwords)
+function extractKeywords(title, maxKeywords = 5) {
+  const normalized = normalizeTitle(title);
+  const words = normalized.split(' ').filter(w => w.length > 2 && !STOPWORDS.has(w));
+  // Prioritize first 5 words (usually more specific)
+  const prioritized = words.slice(0, 5);
+  const rest = words.slice(5).filter(w => !prioritized.includes(w));
+  const selected = [...prioritized, ...rest].slice(0, maxKeywords);
+  return new Set(selected);
+}
+
+// Calculate keyword overlap between two sets
+function keywordOverlap(kw1, kw2) {
+  let shared = 0;
+  for (const w of kw1) {
+    if (kw2.has(w)) shared++;
+  }
+  return shared;
+}
+
+// Check if 2 stories should be grouped based on multiple strategies
+function shouldGroupWithStory(newSubject, newKeywords, cycle, region, existingStory) {
+  const sSubject = (existingStory.main_subject || '').toLowerCase();
+  const aSubject = newSubject.toLowerCase();
+  const sNorm = normalizeTitle(existingStory.main_subject || '');
+  const aNorm = normalizeTitle(newSubject);
+
+  // Strategy 1: Same cycle + region AND 50%+ keyword overlap (min 2 shared)
+  if (existingStory.cycle === cycle && existingStory.region === region) {
+    const existingKeywords = existingStory._cachedKeywords || extractKeywords(existingStory.main_subject || '');
+    const overlap = keywordOverlap(newKeywords, existingKeywords);
+    if (overlap >= 2) {
+      return { match: true, reason: `keywords(${overlap} shared)` };
+    }
+  }
+
+  // Strategy 2: Normalized titles are very similar (>70% words in common)
+  const sWords = sNorm.split(' ').filter(w => w.length > 2);
+  const aWords = aNorm.split(' ').filter(w => w.length > 2);
+  if (sWords.length > 0 && aWords.length > 0) {
+    const common = sWords.filter(w => aWords.includes(w));
+    const minLen = Math.min(sWords.length, aWords.length);
+    if (minLen > 0 && common.length / minLen >= 0.5) {
+      return { match: true, reason: `title similarity(${common.length}/${minLen})` };
+    }
+  }
+
+  // Strategy 3: 3+ identical words in first 5 words
+  const sFirst5 = sNorm.split(' ').slice(0, 5);
+  const aFirst5 = aNorm.split(' ').slice(0, 5);
+  const first5Match = sFirst5.filter(w => aFirst5.includes(w) && w.length > 2);
+  if (first5Match.length >= 3) {
+    return { match: true, reason: `first5 match(${first5Match.length})` };
+  }
+
+  // Strategy 4: Substring match (original logic, as fallback)
+  if (sNorm.includes(aNorm.slice(0, 15)) || aNorm.includes(sNorm.slice(0, 15))) {
+    return { match: true, reason: 'substring' };
+  }
+
+  return { match: false, reason: null };
+}
+
 async function upsertStory(article, analysis, log) {
   const subject = analysis.main_subject || article.title.slice(0, 50);
   const cycle = normalizeCycle(analysis.cycle);
@@ -250,31 +361,45 @@ async function upsertStory(article, analysis, log) {
   const sentimentMap = { 'positivo': 'up', 'negativo': 'down', 'neutro': 'stable' };
   const sentiment_trend = sentimentMap[analysis.sentiment] || 'stable';
   
+  // Extract keywords for new article
+  const newKeywords = extractKeywords(subject);
+  
   // Find existing story by similar subject
   const searchRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/stories?select=id,main_subject,article_count,cycle,region&order=updated_at.desc&limit=20`,
+    `${SUPABASE_URL}/rest/v1/stories?select=id,main_subject,article_count,cycle,region&order=updated_at.desc&limit=30`,
     { headers }
   );
   let existingStories = [];
   try { existingStories = await searchRes.json(); } catch { existingStories = []; }
   if (!Array.isArray(existingStories)) existingStories = [];
   
-  // Find similar story (simple substring match)
-  let existingStory = null;
+  // Cache keywords for each existing story
   for (const s of existingStories) {
-    const sSubject = (s.main_subject || '').toLowerCase();
-    const aSubject = subject.toLowerCase();
-    if (sSubject.includes(aSubject.slice(0, 20)) || aSubject.includes(sSubject.slice(0, 20))) {
+    s._cachedKeywords = extractKeywords(s.main_subject || '');
+  }
+  
+  // Find similar story using improved matching
+  let existingStory = null;
+  let matchReason = null;
+  
+  // First pass: same cycle + region (higher priority)
+  const sameCycleRegion = existingStories.filter(s => s.cycle === cycle && s.region === region);
+  for (const s of sameCycleRegion) {
+    const { match, reason } = shouldGroupWithStory(subject, newKeywords, cycle, region, s);
+    if (match) {
       existingStory = s;
+      matchReason = reason;
       break;
     }
-    // Also match by cycle + region combination
-    if (s.cycle === cycle && s.region === region) {
-      // Check first 3 words of subject
-      const sWords = sSubject.split(' ').slice(0, 3).join(' ');
-      const aWords = aSubject.split(' ').slice(0, 3).join(' ');
-      if (sWords.length > 5 && aWords.includes(sWords.slice(0, 10))) {
+  }
+  
+  // Second pass: any cycle/region if no match found
+  if (!existingStory) {
+    for (const s of existingStories) {
+      const { match, reason } = shouldGroupWithStory(subject, newKeywords, cycle, region, s);
+      if (match) {
         existingStory = s;
+        matchReason = reason;
         break;
       }
     }
@@ -302,7 +427,7 @@ async function upsertStory(article, analysis, log) {
         article_count: (existingStory.article_count || 1) + 1,
       }),
     });
-    log.push(`   📖 Story #${storyId} atualizada: "${subject.slice(0, 25)}" [${cycle}/${region}]`);
+    log.push(`   📖 Story #${storyId} atualizada [${matchReason}]: "${subject.slice(0, 25)}" [${cycle}/${region}]`);
   } else {
     // Create new story
     const newStoryRes = await fetch(`${SUPABASE_URL}/rest/v1/stories`, {
@@ -367,7 +492,13 @@ export default async function handler(req, res) {
     // 4. Insert articles
     log.push('🔍 Inserindo...');
     let insertedCount = 0;
+    let skippedSports = 0;
     for (const item of allItems) {
+      // Skip sports articles
+      if (isSportsArticle(item.title, item.content)) {
+        skippedSports++;
+        continue;
+      }
       const h = hash(item.title + item.url);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
         method: 'POST',
@@ -384,7 +515,7 @@ export default async function handler(req, res) {
       });
       if (r.ok) insertedCount++;
     }
-    log.push(`   ✅ Inseridos: ${insertedCount}`);
+    log.push(`   ✅ Inseridos: ${insertedCount} | Sports: ${skippedSports}`);
 
     // 5. Analyze with Ollama
     let storiesCreated = 0;
