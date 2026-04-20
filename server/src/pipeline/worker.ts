@@ -22,6 +22,7 @@ import { fetchFolha } from '../collectors/folha.js';
 import { fetchUOL } from '../collectors/uol.js';
 import { fetchEstadao } from '../collectors/estadao.js';
 import { parseMetropolesHomepage } from '../collectors/metropoles.js';
+import { fetchAP, fetchAlJazeera, fetchFrance24, fetchDW, fetchRTE, fetchNBC } from '../collectors/foreign.js';
 import { contentHash, checkDuplicate } from '../dedup/deduplicator.js';
 import { analyzeWithOllamaCloudWithRetry } from '../analyzer/ollama-cloud-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
@@ -88,6 +89,12 @@ export async function runPipeline(): Promise<PipelineResult> {
     'folha': fetchFolha,
     'uol': fetchUOL,
     'estadao': fetchEstadao,
+    'ap': fetchAP,
+    'aljazeera': fetchAlJazeera,
+    'france24': fetchFrance24,
+    'dw': fetchDW,
+    'rte': fetchRTE,
+    'nbc': fetchNBC,
     'metropoles': async () => {
       try {
         const response = await fetch('https://www.metropoles.com', {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
+import '../screens/story_detail_screen.dart';
 
 class StoryCard extends StatefulWidget {
   final Story story;
@@ -66,6 +67,19 @@ class _StoryCardState extends State<StoryCard> {
     return _isWeb && widget.story.previewArticles.isNotEmpty;
   }
 
+  void _onExpandTap() {
+    setState(() => _expanded = !_expanded);
+  }
+
+  void _onCardTap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StoryDetailScreen(story: widget.story),
+      ),
+    );
+  }
+
   String _sourceLabel(String sourceId) {
     final map = {
       'g1': 'G1', 'folha': 'Folha', 'uol': 'UOL',
@@ -81,9 +95,7 @@ class _StoryCardState extends State<StoryCard> {
     final story = widget.story;
 
     return GestureDetector(
-      onTap: _showArticlePreview
-          ? () => setState(() => _expanded = !_expanded)
-          : widget.onTap,
+      onTap: _showArticlePreview ? _onExpandTap : _onCardTap,
       onLongPress: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

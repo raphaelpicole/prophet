@@ -108,23 +108,46 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Widget _articleCard(dynamic a) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(a['title'] ?? 'Sem título', style: const TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(a['source_name'] ?? a['source_slug'] ?? '—', style: const TextStyle(color: AppTheme.primary, fontSize: 11)),
-              const Spacer(),
-              Text(_timeAgo(DateTime.tryParse(a['published_at'] ?? '') ?? DateTime.now()), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+    final url = a['url'] as String?;
+    return GestureDetector(
+      onTap: () async {
+        if (url != null && url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(10)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(a['title'] ?? 'Sem título', style: const TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500)),
+                ),
+                if (url != null && url.isNotEmpty)
+                  const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(a['source_name'] ?? a['source_slug'] ?? '—', style: const TextStyle(color: AppTheme.primary, fontSize: 11)),
+                const Spacer(),
+                Text(_timeAgo(DateTime.tryParse(a['published_at'] ?? '') ?? DateTime.now()), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+              ],
+            ),
+            if (a['summary'] != null && (a['summary'] as String).isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(a['summary'], style: const TextStyle(color: AppTheme.textoSec, fontSize: 11), maxLines: 3, overflow: TextOverflow.ellipsis),
             ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
