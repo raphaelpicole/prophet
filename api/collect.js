@@ -6,7 +6,7 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-const HISTORICAL_PROMPT = `Voce eh um analist preditivo do sistema Prophet. Analise a noticia e, usando eventos historicos analogues, gere uma previsao.
+const HISTORICAL_PROMPT = `Voce eh um analist preditivo do sistema Prophet. Analise a noticia e, usando eventos historicos analogues, gere uma previsao racional.
 
 Noticia: {story_title}
 Resumo: {story_summary}
@@ -16,14 +16,20 @@ Regiao: {region}
 Eventos historicos semelhantes:
 {historical_events}
 
-Retorne APENAS JSON valido com:
-- probability: float de 0.0 a 1.0 (chance do evento/resultado ocorrer nos proximos 30-90 dias)
-- historical_analogue: nome do evento historico mais semelhante (string)
-- reasoning: explicacao curta de why this event resembles the historical case (max 200 chars)
-- confidence: "high", "medium" ou "low"
-- horizon_days: numero de dias estimado para o evento ocorrer (30-90)
+Retorne APENAS JSON valido com esta estrutura EXATA:
+{
+  "probability": 0.0 a 1.0 (chance do evento/resultado ocorrer nos proximos 30-90 dias),
+  "historical_analogue": "nome curto do evento historico mais semelhante (ex: Anexacao da Crimeia 2014)",
+  "reasoning": "EXPLICACAO DETALHADA de como voce conectou a noticia atual ao evento historico. Explique QUAIS PADROES sao semelhantes (politicos, economicos, sociais) e POR QUE isso sugere que X acontecera. Minimo 100 caracteres. Este campo é OBRIGATORIO.",
+  "confidence": "high", "medium" ou "low" (baseado em quao forte e a analogia historica),
+  "horizon_days": numero de 30 a 90 (dias estimados para o evento ocorrer)
+}
 
- Seja preciso. Baseie a probabilidade no que aconteceu em eventos semelhantes.`;
+REGRAS CRITICAS:
+1. reasoning DEVE explicar especificamente como a noticia atual se parece com o caso historico. Compare os elementos concretos: quem estava envolvido, quais eram as condicoes previas, como o evento se desenrolou.
+2. A probabilidade deve ser baseada em dados reais do evento historico, nao em especulacao.
+3. confidence alto = evento historico muito similar e padrao claro. confidence baixo = analogia fraca ou muitos fatores diferentes.
+4. Seja honesto sobre a incerteza.`;
 
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';

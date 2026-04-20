@@ -1,3 +1,44 @@
+class Prediction {
+  final String id;
+  final String title;
+  final String? description;
+  final double probability;
+  final String? historicalAnalogue;
+  final String? reasoning;
+  final String? confidence;
+  final int? horizonDays;
+  final String? outcome;
+  final DateTime createdAt;
+
+  Prediction({
+    required this.id,
+    required this.title,
+    this.description,
+    required this.probability,
+    this.historicalAnalogue,
+    this.reasoning,
+    this.confidence,
+    this.horizonDays,
+    this.outcome,
+    required this.createdAt,
+  });
+
+  factory Prediction.fromJson(Map<String, dynamic> json) {
+    return Prediction(
+      id: json['id'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'],
+      probability: (json['probability'] ?? 0.5).toDouble(),
+      historicalAnalogue: json['historical_analogue'],
+      reasoning: json['reasoning'],
+      confidence: json['confidence'],
+      horizonDays: json['horizon_days'],
+      outcome: json['outcome'],
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
 class Story {
   final String id;
   final String title;
@@ -10,6 +51,7 @@ class Story {
   final DateTime updatedAt;
   final String? region;
   final List<PreviewArticle> previewArticles;
+  final Prediction? prediction;
 
   Story({
     required this.id,
@@ -23,6 +65,7 @@ class Story {
     required this.updatedAt,
     this.region,
     this.previewArticles = const [],
+    this.prediction,
   });
 
   factory Story.fromJson(Map<String, dynamic> json) {
@@ -42,6 +85,7 @@ class Story {
               ?.map((a) => PreviewArticle.fromJson(a))
               .toList() ??
           [],
+      prediction: json['prediction'] != null ? Prediction.fromJson(json['prediction']) : null,
     );
   }
 }

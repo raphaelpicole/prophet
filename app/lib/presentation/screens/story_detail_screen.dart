@@ -90,6 +90,10 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
             _sentimentTimeline(),
 
             const SizedBox(height: 24),
+            if (widget.story.prediction != null) ...[
+              _predictionCard(widget.story.prediction!),
+              const SizedBox(height: 24),
+            ],
             const Text('📰 Artigos', style: TextStyle(color: AppTheme.texto, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             if (_loading)
@@ -150,6 +154,75 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _predictionCard(Prediction pred) {
+    final confColor = pred.confidence == 'high' ? AppTheme.sucesso
+        : pred.confidence == 'medium' ? AppTheme.warning : AppTheme.alerta;
+    final confLabel = pred.confidence == 'high' ? 'Alta'
+        : pred.confidence == 'medium' ? 'Média' : 'Baixa';
+    final probPct = '${(pred.probability * 100).toInt()}%';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.primary.withValues(alpha: 0.15), AppTheme.card],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Text('🔮', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            const Text('Previsão Histórica', style: TextStyle(color: AppTheme.texto, fontSize: 15, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: confColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+              child: Text('$confLabel confiança', style: TextStyle(color: confColor, fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+              child: Text('Prob: $probPct', style: const TextStyle(color: AppTheme.primary, fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 12),
+            if (pred.historicalAnalogue != null) Expanded(
+              child: Text('Analogia: ${pred.historicalAnalogue}', style: const TextStyle(color: AppTheme.texto, fontSize: 12), overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+          _buildReasoningSection(pred.reasoning),
+          const SizedBox(height: 10),
+          Row(children: [
+            Icon(Icons.calendar_today, color: AppTheme.textoSec, size: 12),
+            const SizedBox(width: 4),
+            Text('Horizonte: ${pred.horizonDays ?? 60} dias', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+            const Spacer(),
+            Text(_timeAgo(pred.createdAt), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReasoningSection(String? reasoning) {
+    if (reasoning == null || reasoning.isEmpty) return const SizedBox.shrink();
+    return Column(children: [
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppTheme.bg.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8)),
+        child: Text(reasoning, style: const TextStyle(color: AppTheme.textoSec, fontSize: 12, height: 1.4)),
+      ),
+    ]);
   }
 
   Widget _emptyState() => Container(

@@ -38,6 +38,21 @@ export default async function handler(req, res) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/predictions?${params}`, { headers });
       let predictions = await r.json();
       
+      // Enrich each prediction with historical analogue info from description
+      // The model stores historical_analogue and reasoning in description as a combined text
+      predictions = predictions.map(p => ({
+        ...p,
+        historical_event: p.description ? {
+          name: p.description.split(' | ')[0] || p.description.slice(0, 80),
+          description: p.description,
+        } : null,
+        // Legacy fields still present
+        historical_analogue: p.historical_analogue,
+        reasoning: p.reasoning,
+        confidence: p.confidence,
+        horizon_days: p.horizon_days,
+      }));
+      
       if (status === 'pending') predictions = predictions.filter(p => p.outcome === null);
       else if (status === 'resolved') predictions = predictions.filter(p => p.outcome !== null);
       
