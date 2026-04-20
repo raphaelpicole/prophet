@@ -299,6 +299,18 @@ async function upsertStory(article, analysis, log) {
     storyId = newStory?.[0]?.id || newStory?.id || null;
     log.push(`   🆕 Story criada: "${subject.slice(0, 25)}" [${cycle}/${region}]`);
   }
+
+  // Insert into story_articles junction
+  if (storyId && article.id) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/story_articles`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify({ story_id: storyId, article_id: article.id }),
+      });
+    } catch (_) {}
+  }
+
   return storyId;
 }
 

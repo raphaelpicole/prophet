@@ -31,10 +31,16 @@ export default async function handler(req, res) {
     if (!Array.isArray(storyData) || storyData.length === 0) return res.status(404).json({ error: 'não encontrado' });
     const story = storyData[0];
 
-    // Articles via story_id directly on raw_articles
-    const ar = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?story_id=eq.${id}&select=*&order=published_at.desc&limit=20`, { headers });
-    const rawArts = await ar.json();
-    const articles = Array.isArray(rawArts) ? rawArts : [];
+    // Articles via story_articles junction table → raw_articles
+    const ja = await fetch(`${SUPABASE_URL}/rest/v1/story_articles?story_id=eq.${id}&select=article_id`, { headers });
+    const junction = await ja.json();
+    const articleIds = Array.isArray(junction) ? junction.map(j => j.article_id) : [];
+    const articles = [];
+    if (articleIds.length > 0) {
+      const aid = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=in.(${articleIds.join(',')})&select=*&order=published_at.desc&limit=20`, { headers });
+      const rawArts = await aid.json();
+      articles = Array.isArray(rawArts) ? rawArts : [];
+    }
 
     return res.status(200).json({ ...story, articles });
   } catch (e) {
