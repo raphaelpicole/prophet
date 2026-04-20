@@ -25,7 +25,14 @@ export default async function handler(req, res) {
 
   let params = `select=*&archived=eq.false&order=updated_at.desc&limit=${limit}&offset=${offset}`;
   if (cycle) params += `&cycle=eq.${cycle}`;
-  if (region) params += `&region=eq.${region}`;
+  if (region) {
+    // Treat SAM (South America) as inclusive of BR (Brazil)
+    if (region === 'SAM') {
+      params += `&(region=eq.SAM,region=eq.BR)`;
+    } else {
+      params += `&region=eq.${region}`;
+    }
+  }
   if (search) params += `&main_subject=ilike.*${search}*`;
 
   try {

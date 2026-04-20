@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screens/radar_screen.dart';
 import 'presentation/screens/analysis_screen.dart';
@@ -37,6 +38,12 @@ class ProphetApp extends StatelessWidget {
             builder: (_) => ArticleDetailScreen(story: story),
           );
         }
+        if (settings.name == '/admin' && kReleaseMode) {
+          // Secret admin route accessible even in release mode
+          return MaterialPageRoute(
+            builder: (_) => const AdminScreen(),
+          );
+        }
         return MaterialPageRoute(
           builder: (_) => const MainShell(),
         );
@@ -56,7 +63,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final _screens = const [
+  final _allScreens = const [
     RadarScreen(),
     AnalysisScreen(),
     ProphetScreen(),
@@ -65,32 +72,37 @@ class _MainShellState extends State<MainShell> {
     AdminScreen(),
   ];
 
-  final _labels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config', 'Admin'];
+  final _allLabels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config', 'Admin'];
+  final _releaseLabels = ['Radar', 'Análise', 'Profeta', 'Mapa'];
 
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 800;
+    final isRelease = kReleaseMode;
+
+    // In release mode, hide Admin and Config from navigation
+    final screens = isRelease ? _allScreens.sublist(0, 4) : _allScreens;
+    final labels = isRelease ? _releaseLabels : _allLabels;
 
     return Scaffold(
       body: Row(
         children: [
-          if (isWide) _buildSideNav(),
+          if (isWide) _buildSideNav(screens: screens, labels: labels),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
-              children: _screens,
+              children: screens,
             ),
           ),
         ],
       ),
-      bottomNavigationBar: isWide ? null : _buildBottomNav(),
+      bottomNavigationBar: isWide ? null : _buildBottomNav(labels: labels),
     );
   }
 
-  Widget _buildSideNav() {
+  Widget _buildSideNav({required List<Widget> screens, required List<String> labels}) {
     final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
     final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.public, Icons.settings, Icons.admin_panel_settings];
-    final labels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config'];
 
     return Container(
       width: 80,
@@ -107,7 +119,7 @@ class _MainShellState extends State<MainShell> {
             child: const Icon(Icons.visibility, color: AppTheme.primary, size: 28),
           ),
           const SizedBox(height: 24),
-          ...List.generate(_screens.length, (i) => _sideNavItem(i, icons, activeIcons, labels)),
+          ...List.generate(screens.length, (i) => _sideNavItem(i, icons, activeIcons, labels)),
         ],
       ),
     );
@@ -139,7 +151,9 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav({required List<String> labels}) {
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
+
     return Container(
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppTheme.surface, width: 1)),
@@ -151,14 +165,10 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: AppTheme.bg,
         selectedItemColor: AppTheme.primary,
         unselectedItemColor: AppTheme.textoSec,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.radar), label: 'Radar'),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: 'Análise'),
-          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_outlined), label: 'Profeta'),
-          BottomNavigationBarItem(icon: Icon(Icons.public_outlined), label: 'Mapa'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Config'),
-          BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings_outlined), label: 'Admin'),
-        ],
+        items: List.generate(labels.length, (i) => BottomNavigationBarItem(
+          icon: Icon(icons[i]),
+          label: labels[i],
+        )),
       ),
     );
   }

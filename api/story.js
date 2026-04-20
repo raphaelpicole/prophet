@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     // Articles via story_id directly on raw_articles
     const ar = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?story_id=eq.${id}&select=*&order=published_at.desc&limit=20`, { headers });
     const rawArts = await ar.json();
-    articles = Array.isArray(rawArts) ? rawArts : [];
+    const articles = Array.isArray(rawArts) ? rawArts : [];
 
     return res.status(200).json({ ...story, articles });
   } catch (e) {

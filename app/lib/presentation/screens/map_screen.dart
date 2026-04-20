@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/constants.dart';
 import '../../data/models/source.dart';
@@ -464,6 +465,26 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => _selectedRegion = r.name);
     final coords = _regionCoords[r.code];
     if (coords != null) _mapController.move(coords, _zoom(r.name));
+    // Also load stories for this region
+    _loadStoriesForRegion(r.code);
+  }
+
+  Future<void> _loadStoriesForRegion(String code) async {
+    // Convert region code to API format
+    String? apiRegion;
+    if (code == 'SAM') apiRegion = 'SAM';
+    else if (code == 'NAM') apiRegion = 'US';
+    else if (code == 'EUR') apiRegion = 'EU';
+    else if (code == 'ASI') apiRegion = 'CN';
+    else if (code == 'MID') apiRegion = 'ME';
+    else if (code == 'AFR') apiRegion = 'AF';
+    else if (code == 'OCE') apiRegion = 'AS';
+    else if (code == 'GLB') apiRegion = null;
+
+    try {
+      final stories = await _api.getStories(region: apiRegion, limit: 20);
+      if (mounted) setState(() => _stories = stories);
+    } catch (_) {}
   }
 
   Widget _buildRegionInfo() {

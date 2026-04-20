@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/source.dart';
+import '../../data/models/story.dart';
 import '../../data/models/foreign_source.dart';
 import '../../data/services/api_service.dart';
 
@@ -16,6 +18,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   List<Source>? _sources;
   bool _loading = true;
   String? _error;
+  Set<String> _expandedSources = {};
+  Map<String, List<Story>> _sourceArticles = {};
+  Map<String, bool> _loadingArticles = {};
 
   @override
   void initState() {
@@ -36,6 +41,28 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         _sources = _mockSources();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _toggleSourceExpand(String sourceId) async {
+    if (_expandedSources.contains(sourceId)) {
+      setState(() => _expandedSources.remove(sourceId));
+      return;
+    }
+    setState(() => _expandedSources.add(sourceId));
+    if (!_sourceArticles.containsKey(sourceId)) {
+      setState(() => _loadingArticles[sourceId] = true);
+      try {
+        final stories = await _api.getStories(region: null, limit: 5);
+        if (mounted) {
+          setState(() {
+            _sourceArticles[sourceId] = stories;
+            _loadingArticles.remove(sourceId);
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _loadingArticles.remove(sourceId));
+      }
     }
   }
 
@@ -258,26 +285,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   Widget _sourceCard(Source s) {
+    final expanded = _expandedSources.contains(s.id);
+    final loading = _loadingArticles[s.id] == true;
+    final articles = _sourceArticles[s.id] ?? [];
+
     // Calcula badges baseado em métricas
     final badges = <Widget>[];
-    
+
     // Badge de alta atividade
     if (s.articles24h >= 20) {
       badges.add(_badge('🔥 Hot', const Color(0xFFFF5722)));
     } else if (s.articles24h >= 15) {
       badges.add(_badge('📈 Ativo', const Color(0xFFFF9800)));
     }
-    
+
     // Badge de análise
-    final analysisRate = s.totalArticles > 0 
-        ? (s.analyzedCount / s.totalArticles * 100).round() 
+    final analysisRate = s.totalArticles > 0
+        ? (s.analyzedCount / s.totalArticles * 100).round()
         : 0;
     if (analysisRate >= 80) {
       badges.add(_badge('✅ Analisado', const Color(0xFF4CAF50)));
     } else if (analysisRate >= 50) {
       badges.add(_badge('🔄 Parcial', const Color(0xFF2196F3)));
     }
-    
+
     // Badge de fiabilidade (poucos erros)
     if (s.failedCount == 0) {
       badges.add(_badge('💚 0 erros', const Color(0xFF4CAF50)));
@@ -285,63 +316,150 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       badges.add(_badge('⚠️ ${s.failedCount} erros', const Color(0xFFFF9800)));
     }
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Badges na parte superior
-          if (badges.isNotEmpty)
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: badges,
+    return GestureDetector(
+      onTap: () => _toggleSourceExpand(s.id),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(12),
+          border: expanded ? Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5) : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Badges na parte superior
+            if (badges.isNotEmpty)
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: badges,
+              ),
+            if (badges.isNotEmpty) const SizedBox(height: 8),
+
+            // Nome e ideologia
+            Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(s.name, style: const TextStyle(
+                      color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+                    )),
+                    Text(_ideologyLabel(s.ideology), style: TextStyle(
+                      color: _biasColor(s.ideology), fontSize: 10,
+                    )),
+                  ],
+                ),
+              ),
+              Icon(
+                expanded ? Icons.expand_less : Icons.expand_more,
+                color: AppTheme.textoSec,
+                size: 18,
+              ),
+            ]),
+
+            const Spacer(),
+
+            // Métricas
+            Row(
+              children: [
+                Text('${s.articles24h}', style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+                )),
+                const SizedBox(width: 4),
+                const Text('art/24h', style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+                const Spacer(),
+                Text('${s.analyzedCount}/${s.totalArticles}', style: const TextStyle(
+                  color: AppTheme.textoSec, fontSize: 10,
+                )),
+              ],
             ),
-          if (badges.isNotEmpty) const SizedBox(height: 8),
-          
-          // Nome e ideologia
-          Text(s.name, style: const TextStyle(
-            color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
-          )),
-          Text(_ideologyLabel(s.ideology), style: TextStyle(
-            color: _biasColor(s.ideology), fontSize: 10,
-          )),
-          
-          const Spacer(),
-          
-          // Métricas
-          Row(
-            children: [
-              Text('${s.articles24h}', style: const TextStyle(
-                color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+
+            // Barra de progresso de análise
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: s.totalArticles > 0 ? s.analyzedCount / s.totalArticles : 0,
+                backgroundColor: AppTheme.surface,
+                valueColor: AlwaysStoppedAnimation<Color>(_analysisColor(analysisRate)),
+                minHeight: 4,
+              ),
+            ),
+
+            // Expanded articles section
+            if (expanded) ...[
+              const SizedBox(height: 10),
+              const Divider(color: AppTheme.surface, height: 1),
+              const SizedBox(height: 8),
+              const Text('📰 Artigos recentes', style: TextStyle(
+                color: AppTheme.textoSec, fontSize: 10, fontWeight: FontWeight.w600,
               )),
-              const SizedBox(width: 4),
-              const Text('art/24h', style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
-              const Spacer(),
-              Text('${s.analyzedCount}/${s.totalArticles}', style: const TextStyle(
-                color: AppTheme.textoSec, fontSize: 10,
-              )),
+              const SizedBox(height: 6),
+              if (loading)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2)),
+                ))
+              else if (articles.isEmpty)
+                const Text('Nenhum artigo encontrado', style: TextStyle(
+                  color: AppTheme.textoSec, fontSize: 10,
+                ))
+              else
+                ...articles.map((story) => _sourceArticleItem(story)),
             ],
-          ),
-          
-          // Barra de progresso de análise
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: s.totalArticles > 0 ? s.analyzedCount / s.totalArticles : 0,
-              backgroundColor: AppTheme.surface,
-              valueColor: AlwaysStoppedAnimation<Color>(_analysisColor(analysisRate)),
-              minHeight: 4,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _sourceArticleItem(Story story) {
+    return GestureDetector(
+      onTap: () async {
+        final url = story.previewArticles.isNotEmpty ? story.previewArticles.first.url : null;
+        if (url != null && url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(story.title, style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 10,
+                ), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(_timeAgo(story.updatedAt), style: const TextStyle(
+                  color: AppTheme.textoSec, fontSize: 9,
+                )),
+              ],
+            ),
+          ),
+          const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 12),
+        ]),
+      ),
+    );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m atrás';
+    if (diff.inHours < 24) return '${diff.inHours}h atrás';
+    return '${diff.inDays}d atrás';
   }
 
   Widget _badge(String text, Color color) {
