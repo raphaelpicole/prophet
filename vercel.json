@@ -10,9 +10,7 @@
     { "src": "/api/historical", "dest": "/api/misc.js" },
     { "src": "/api/predictions", "dest": "/api/data.js" },
     { "src": "/api/logs", "dest": "/api/data.js" },
-    { "src": "/api/admin", "dest": "/api/admin/admin.js" },
-    { "src": "/api/admin/actions", "dest": "/api/admin/admin.js" },
-    { "src": "/api/admin/tables", "dest": "/api/admin/admin.js" },
+    { "src": "/api/admin(/.*)?", "dest": "/api/admin-panel.js" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" }
   ],
   "crons": [{
