@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/source.dart';
+import '../../data/models/foreign_source.dart';
 import '../../data/services/api_service.dart';
 
 class AnalysisScreen extends StatefulWidget {
@@ -148,6 +149,45 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         delegate: SliverChildBuilderDelegate(
                           (context, i) => _sourceCard(_sources![i]),
                           childCount: _sources!.length,
+                        ),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+                    // Foreign Media section
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Text('🌍 Mídia Estrangeira', style: TextStyle(
+                              color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+                            )),
+                            const Spacer(),
+                            Text(
+                              '${ForeignSource.all.length} fontes',
+                              style: const TextStyle(color: AppTheme.textoSec, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.8,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => _foreignSourceCard(ForeignSource.all[i]),
+                          childCount: ForeignSource.all.length,
                         ),
                       ),
                     ),
@@ -344,5 +384,60 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       case 'direita': return '➡️ Direita';
       default: return '❓ Indefinido';
     }
+  }
+
+  Widget _foreignSourceCard(ForeignSource src) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Text('🌐', style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(src.name, style: const TextStyle(
+                color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+              )),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(src.country, style: const TextStyle(
+                color: AppTheme.textoSec, fontSize: 10,
+              )),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(src.language, style: const TextStyle(
+                color: AppTheme.primary, fontSize: 10,
+              )),
+            ),
+          ]),
+          const Spacer(),
+          Text(
+            src.url.replaceFirst('https://', '').replaceFirst('http://', ''),
+            style: const TextStyle(color: AppTheme.textoSec, fontSize: 9),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 }

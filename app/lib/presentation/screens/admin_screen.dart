@@ -19,9 +19,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   List<Map<String, dynamic>> _actions = [];
   List<Map<String, dynamic>> _logs = [];
   bool _loading = true;
+  bool _loadingAction = false;
   int _page = 0;
   int _totalPages = 1;
   int _totalRows = 0;
+  static const int _tablePageSize = 20;
+
+  final List<Map<String, String>> _adminActions = [
+    {'key': 'run_collect', 'label': '📡 Coleta RSS', 'description': 'Coleta novos artigos via RSS'},
+    {'key': 'analyze_pending', 'label': '🧠 Analisar Artigos', 'description': 'Envia artigos pendentes para análise IA'},
+    {'key': 'group_stories', 'label': '🔗 Agrupar Stories', 'description': 'Agrupar artigos em stories'},
+    {'key': 'cleanup_logs', 'label': '🧹 Limpar Logs', 'description': 'Remove logs antigos do sistema'},
+    {'key': 'get_status', 'label': '📊 Status do Sistema', 'description': 'Verificar status e métricas do sistema'},
+  ];
+
+  final List<String> _tables = [
+    'raw_articles', 'stories', 'sources', 'predictions',
+    'logs', 'analysis', 'regions', 'story_articles', 'entities',
+  ];
 
   @override
   void initState() {
@@ -114,7 +129,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ));
       }
     } catch (e) {
-      setState(() => _loading = false);
+      setState(() { _loadingAction = false; _loading = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('❌ Erro: $e'),
@@ -222,7 +237,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         unselectedLabelStyle: const TextStyle(fontSize: 12),
         tabs: const [
-          Tab(text: '🔧 Ações'),
+          Tab(text: '⚡ Ações'),
           Tab(text: '🗄️ Tabelas'),
           Tab(text: '📋 Logs'),
         ],
@@ -245,63 +260,67 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Widget _buildActionsTab() {
-    if (_actions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.play_circle_outline, color: AppTheme.textoSec, size: 48),
-            const SizedBox(height: 12),
-            Text('Nenhuma ação disponível', style: TextStyle(color: AppTheme.textoSec)),
-            const SizedBox(height: 12),
-            TextButton(onPressed: _loadAll, child: const Text('Recarregar')),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
+    return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      itemCount: _actions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.4,
+      ),
+      itemCount: _adminActions.length,
       itemBuilder: (context, i) {
-        final action = _actions[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-            title: Text(action['label'] ?? action['key'], style: const TextStyle(
-              color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
-            )),
-            subtitle: Text(action['description'] ?? '', style: const TextStyle(
-              color: AppTheme.textoSec, fontSize: 11,
-            )),
-            trailing: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                minimumSize: Size.zero,
-              ),
-              onPressed: _loading ? null : () => _runAction(action['key']),
-              child: const Text('Rodar', style: TextStyle(fontSize: 11)),
-            ),
-          ),
-        );
+        final action = _adminActions[i];
+        return _adminActionCard(action['key']!, action['label']!, action['description']!);
       },
     );
   }
 
+  Widget _adminActionCard(String key, String label, String description) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.surface),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _loadingAction ? null : () => _runAction(key),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(label, style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.bold,
+                )),
+                const SizedBox(height: 6),
+                Text(description, style: const TextStyle(
+                  color: AppTheme.textoSec, fontSize: 11,
+                ), maxLines: 2),
+                if (_loadingAction) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(color: AppTheme.primary, minHeight: 2),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTablesTab() {
-    final tables = ['raw_articles', 'stories', 'sources', 'predictions', 'logs'];
     return Column(
       children: [
         // Table selector
         Container(
           height: 40,
           margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: ListView(scrollDirection: Axis.horizontal, children: tables.map((t) {
+          child: ListView(scrollDirection: Axis.horizontal, children: _tables.map((t) {
             final active = _selectedTable == t;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
