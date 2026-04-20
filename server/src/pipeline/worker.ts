@@ -23,8 +23,7 @@ import { fetchUOL } from '../collectors/uol.js';
 import { fetchEstadao } from '../collectors/estadao.js';
 import { parseMetropolesHomepage } from '../collectors/metropoles.js';
 import { contentHash, checkDuplicate } from '../dedup/deduplicator.js';
-import { mockAnalyze } from '../analyzer/mock-analyzer.js';
-import { analyzeWithGroq } from '../analyzer/groq-analyzer.js';
+import { analyzeWithOllamaCloudWithRetry } from '../analyzer/ollama-cloud-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
 import type { RawArticle } from '../collectors/rss.js';
 
@@ -215,18 +214,18 @@ export async function runPipeline(): Promise<PipelineResult> {
     
     for (const article of pendingArticles) {
       try {
-        // Tenta usar Groq primeiro, cai para mock se falhar
-        const analysis = await analyzeWithGroq({
+        // Usa Ollama Cloud primeiro, mock fallback se falhar
+        const analysis = await analyzeWithOllamaCloudWithRetry({
           id: article.id,
           title: article.title,
           content: article.content || undefined,
           source_id: article.source_id,
         });
         
-        const modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
+        const modelUsed = analysis.used_ollama_cloud ? 'ollama-cloud' : 'mock-analyzer';
         
-        if (!analysis.used_groq && analysis.error) {
-          console.log(`      ⚠️  Groq indisponível, usando mock: ${analysis.error}`);
+        if (!analysis.used_ollama_cloud && analysis.error) {
+          console.log(`      ⚠️  Ollama Cloud indisponível, usando mock: ${analysis.error}`);
         }
         
         // Salva análise
@@ -254,7 +253,7 @@ export async function runPipeline(): Promise<PipelineResult> {
         result.summary.totalAnalyzed++;
         
         // Pequeno delay para não sobrecarregar API
-        if (analysis.used_groq) {
+        if (analysis.used_ollama_cloud) {
           await new Promise(r => setTimeout(r, 200));
         }
         
