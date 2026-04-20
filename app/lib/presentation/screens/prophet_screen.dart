@@ -291,6 +291,14 @@ class _ProphetScreenState extends State<ProphetScreen> {
                 color: AppTheme.prophet, fontSize: 11, fontStyle: FontStyle.italic,
               )),
             ],
+            if (p['historical_analogue'] != null && (p['historical_analogue'] as String).isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.history, color: AppTheme.warning, size: 12),
+                const SizedBox(width: 4),
+                Expanded(child: Text('Analogia: ${p["historical_analogue"]}', style: const TextStyle(color: AppTheme.warning, fontSize: 11, fontStyle: FontStyle.italic))),
+              ]),
+            ],
             const SizedBox(height: 4),
             const Row(
               children: [
@@ -430,6 +438,40 @@ class _ProphetScreenState extends State<ProphetScreen> {
                   ]),
                 ),
               ],
+              // Historical analogue section
+              if (p['historical_analogue'] != null && (p['historical_analogue'] as String).isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('📜 Analogia Histórica', style: TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(8)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      const Icon(Icons.history, color: AppTheme.warning, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(p['historical_analogue'] as String? ?? '', style: const TextStyle(color: AppTheme.warning, fontSize: 13, fontWeight: FontWeight.w600))),
+                    ]),
+                    if (p['reasoning'] != null && (p['reasoning'] as String).isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(p['reasoning'] as String? ?? '', style: const TextStyle(color: AppTheme.textoSec, fontSize: 12)),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _confidenceColor(p['confidence'] as String? ?? 'medium').withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('Confiança: ${p["confidence"] ?? "medium"}', style: TextStyle(color: _confidenceColor(p['confidence'] as String? ?? 'medium'), fontSize: 11)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Horizonte: ${p["horizon_days"] ?? 60} dias', style: const TextStyle(color: AppTheme.textoSec, fontSize: 11)),
+                    ]),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 30),
             ],
           ),
@@ -449,5 +491,14 @@ class _ProphetScreenState extends State<ProphetScreen> {
       'cultural': Colors.orange,
     };
     return colors[cycle] ?? AppTheme.textoSec;
+  }
+
+  Color _confidenceColor(String confidence) {
+    switch (confidence) {
+      case 'high': return AppTheme.sucesso;
+      case 'medium': return AppTheme.warning;
+      case 'low': return AppTheme.alerta;
+      default: return AppTheme.textoSec;
+    }
   }
 }
