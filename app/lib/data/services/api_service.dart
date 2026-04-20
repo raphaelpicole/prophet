@@ -93,8 +93,15 @@ class ApiService {
   // Admin panel
   Future<Map<String, dynamic>?> getAdminActions() async {
     try {
-      final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/admin/actions'));
-      if (res.statusCode == 200) return json.decode(res.body) as Map<String, dynamic>;
+      // Consolidated /api/admin endpoint handles actions, tables, logs
+      final res = await _client.get(Uri.parse('${ApiConstants.baseUrl}/admin'));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body) as Map<String, dynamic>;
+        return {
+          'actions': data['actions'],
+          'stats': data['stats'],
+        };
+      }
       return null;
     } catch (e) {
       return null;

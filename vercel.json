@@ -1,9 +1,17 @@
 {
   "version": 2,
   "installCommand": "cd server && npm install",
-  "buildCommand": "echo 'No build needed - using prebuilt assets'",
+  "buildCommand": "echo 'Using prebuilt Flutter assets'",
   "outputDirectory": "app/build/web",
   "routes": [
+    { "src": "/api/regions", "dest": "/api/misc" },
+    { "src": "/api/sources", "dest": "/api/misc" },
+    { "src": "/api/hello", "dest": "/api/misc" },
+    { "src": "/api/historical", "dest": "/api/misc" },
+    { "src": "/api/predictions", "dest": "/api/data" },
+    { "src": "/api/logs", "dest": "/api/data" },
+    { "src": "/api/admin/actions", "dest": "/api/admin" },
+    { "src": "/api/admin/tables", "dest": "/api/admin" },
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ],
   "crons": [{
