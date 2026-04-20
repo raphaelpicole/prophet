@@ -2,5 +2,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",
     "groq-sdk": "^1.1.2"
+  },
+  "scripts": {
+    "test": "node --test api/__tests__/*.test.js",
+    "test:e2e": "node api/__tests__/e2e.test.js",
+    "lint": "echo 'No lint configured yet'"
   }
 }
