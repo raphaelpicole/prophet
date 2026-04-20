@@ -3,7 +3,6 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 import '../../data/models/indicator.dart';
 import '../../data/services/api_service.dart';
-import '../../data/services/mock_service.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/story_card.dart';
 import '../widgets/cycle_donut.dart';
@@ -47,18 +46,15 @@ class _RadarScreenState extends State<RadarScreen> {
         _api.getIndicators().catchError((_) => null),
       ]);
 
-      final stories = results[0] as List<Story>;
-      final indicator = results[1] as Indicator?;
-
       setState(() {
-        _stories = stories.isEmpty ? MockService.getStories() : stories;
-        _indicator = indicator ?? MockService.getIndicator();
+        _stories = results[0] as List<Story>;
+        _indicator = results[1] as Indicator?;
         _loading = false;
       });
     } catch (e) {
       setState(() {
-        _stories = MockService.getStories();
-        _indicator = MockService.getIndicator();
+        _stories = [];
+        _indicator = null;
         _loading = false;
       });
     }

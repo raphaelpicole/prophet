@@ -15,28 +15,15 @@ class _ProphetScreenState extends State<ProphetScreen> {
   final List<String> _cycles = ['Todos', 'conflito', 'economico', 'politico', 'social', 'tecnologico', 'ambiental', 'cultural'];
 
   Future<List<dynamic>> _loadPredictions() async {
-    try {
-      final cycle = _selectedCycle == 'Todos' ? null : _selectedCycle;
-      final predictions = await _api.getPredictions(cycle: cycle);
-      return predictions;
-    } catch (e) {
-      return _mockPredictions();
-    }
+    final cycle = _selectedCycle == 'Todos' ? null : _selectedCycle;
+    return await _api.getPredictions(cycle: cycle).catchError((_) => []);
   }
 
   void _setCycle(String cycle) {
     setState(() => _selectedCycle = cycle);
   }
 
-  List<dynamic> _mockPredictions() {
-    return [
-      {'id': '1', 'title': 'Conflito armado — Oriente Médio', 'cycle': 'conflito', 'probability': 78, 'confidence': 70, 'horizonDays': 90, 'delta': '+13%', 'positive': false, 'pattern': '"Escalada → Conflito" Etapa 3/4'},
-      {'id': '2', 'title': 'Crise econômica — Argentina', 'cycle': 'economico', 'probability': 62, 'confidence': 65, 'horizonDays': 180, 'delta': '+5%', 'positive': false, 'pattern': '"Resgate FMI → Estabilização parcial"'},
-      {'id': '3', 'title': 'Mudança de governo — Hungria', 'cycle': 'politico', 'probability': 85, 'confidence': 80, 'horizonDays': 365, 'delta': '-8%', 'positive': true, 'pattern': 'Resultado: ✅ CORRETO'},
-      {'id': '4', 'title': 'Avanço viral — IA generativa', 'cycle': 'tecnologico', 'probability': 91, 'confidence': 75, 'horizonDays': 30, 'delta': '+22%', 'positive': true, 'pattern': '"Adoção acelerada → Onda de conteúdo"'},
-      {'id': '5', 'title': 'Onda de calor — Europa', 'cycle': 'ambiental', 'probability': 73, 'confidence': 68, 'horizonDays': 60, 'delta': '+8%', 'positive': false, 'pattern': '"La Niña → Amplitude térmica"'},
-    ];
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +112,7 @@ class _ProphetScreenState extends State<ProphetScreen> {
           );
         }
 
-        final predictions = snapshot.data ?? _mockPredictions();
+        final predictions = snapshot.data ?? [];
 
         if (predictions.isEmpty) {
           return Center(child: Column(

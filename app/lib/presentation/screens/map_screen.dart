@@ -7,7 +7,6 @@ import '../../core/constants/constants.dart';
 import '../../data/models/source.dart';
 import '../../data/models/story.dart';
 import '../../data/services/api_service.dart';
-import '../../data/services/mock_service.dart';
 import 'article_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -62,14 +61,14 @@ class _MapScreenState extends State<MapScreen> {
         _api.getStories(limit: 50).catchError((_) => <Story>[]),
       ]);
       if (mounted) setState(() {
-        _regions = (results[0] as List<Region>).isEmpty ? _mockRegions() : results[0] as List<Region>;
-        _stories = (results[1] as List<Story>).isEmpty ? MockService.getStories() : results[1] as List<Story>;
+        _regions = results[0] as List<Region>;
+        _stories = results[1] as List<Story>;
         _loading = false;
       });
     } catch (e) {
       if (mounted) setState(() {
-        _regions = _mockRegions();
-        _stories = MockService.getStories();
+        _regions = [];
+        _stories = [];
         _loading = false;
       });
     }
@@ -84,37 +83,18 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final results = await _api.getStories(search: query, limit: 10).catchError((_) => <Story>[]);
       if (mounted) setState(() {
-        _searchResults = results.isEmpty ? _mockSearch(query) : results;
+        _searchResults = results;
         _searching = false;
       });
     } catch (e) {
       if (mounted) setState(() {
-        _searchResults = _mockSearch(query);
+        _searchResults = [];
         _searching = false;
       });
     }
   }
 
-  List<Story> _mockSearch(String query) {
-    final q = query.toLowerCase();
-    return (_stories ?? [])
-        .where((s) => s.title.toLowerCase().contains(q) || (s.summary ?? '').toLowerCase().contains(q))
-        .take(5)
-        .toList();
-  }
 
-  List<Region> _mockRegions() {
-    return [
-      Region(id: '1', name: '🌍 Global', code: 'GLB'),
-      Region(id: '2', name: '🌎 América do Sul', code: 'SAM'),
-      Region(id: '3', name: '🇧🇷 Brasil', code: 'BRA', parentId: '2'),
-      Region(id: '4', name: '🌐 América do Norte', code: 'NAM'),
-      Region(id: '5', name: '🇺🇸 Estados Unidos', code: 'USA', parentId: '4'),
-      Region(id: '6', name: '🌍 Europa', code: 'EUR'),
-      Region(id: '7', name: '🌏 Ásia', code: 'ASI'),
-      Region(id: '8', name: '🟡 Oriente Médio', code: 'MID'),
-    ];
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -571,76 +551,90 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildPredictionsTab() {
-    final predictions = _mockPredictions();
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: predictions.length,
-      itemBuilder: (ctx, i) {
-        final p = predictions[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: (p['positive'] == true ? Colors.green : Colors.orange).withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  child: Text('${p['probability']}%', style: const TextStyle(
-                    color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
-                  )),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(p['title'] ?? '', style: const TextStyle(
-                      color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500,
-                    )),
-                    const SizedBox(height: 4),
-                    Text(p['pattern'] ?? '', style: const TextStyle(
-                      color: AppTheme.textoSec, fontSize: 11,
-                    )),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(p['delta'] ?? '', style: TextStyle(
-                          color: p['positive'] == true ? Colors.green : Colors.orange,
-                          fontSize: 11, fontWeight: FontWeight.w600,
-                        )),
-                        const SizedBox(width: 8),
-                        Text('⏱ ${p['horizonDays']} dias', style: const TextStyle(
-                          color: AppTheme.textoSec, fontSize: 10,
-                        )),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _cycleColor(p['cycle'] ?? '').withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(_cycleLabel(p['cycle'] ?? ''), style: TextStyle(
-                  color: _cycleColor(p['cycle'] ?? ''), fontSize: 10, fontWeight: FontWeight.w600,
-                )),
-              ),
-            ],
-          ),
+    return FutureBuilder<List<dynamic>>(
+      future: _api.getPredictions().catchError((_) => []),
+      builder: (context, snapshot) {
+        final predictions = snapshot.data ?? [];
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+        }
+        if (predictions.isEmpty) {
+          return const Center(child: Text('Nenhuma previsão disponível', style: TextStyle(color: AppTheme.textoSec)));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: predictions.length,
+          itemBuilder: (ctx, i) => _predictionItem(predictions[i]),
         );
       },
+    );
+  }
+
+  Widget _predictionItem(dynamic p) {
+    final prob = (p['probability'] is num ? (p['probability'] as num).toDouble() : (double.tryParse(p['probability'].toString()) ?? 0.5) * 100).toInt();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: (p['outcome'] == true ? Colors.green : Colors.orange).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text('$prob%', style: const TextStyle(
+                color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
+              )),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(p['title'] ?? '', style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500,
+                )),
+                const SizedBox(height: 4),
+                if (p['pattern'] != null)
+                  Text(p['pattern'] ?? '', style: const TextStyle(
+                    color: AppTheme.textoSec, fontSize: 11,
+                  )),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(p['delta'] ?? '', style: TextStyle(
+                      color: p['positive'] == true ? Colors.green : Colors.orange,
+                      fontSize: 11, fontWeight: FontWeight.w600,
+                    )),
+                    const SizedBox(width: 8),
+                    Text('⏱ ${p['horizon_days'] ?? p['horizonDays'] ?? '?'} dias', style: const TextStyle(
+                      color: AppTheme.textoSec, fontSize: 10,
+                    )),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _cycleColor(p['cycle'] ?? '').withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(_cycleLabel(p['cycle'] ?? ''), style: TextStyle(
+              color: _cycleColor(p['cycle'] ?? ''), fontSize: 10, fontWeight: FontWeight.w600,
+            )),
+          ),
+        ],
+      ),
     );
   }
 
@@ -657,15 +651,7 @@ class _MapScreenState extends State<MapScreen> {
     return colors[cycle] ?? AppTheme.textoSec;
   }
 
-  List<dynamic> _mockPredictions() {
-    return [
-      {'title': 'Conflito armado — Oriente Médio', 'cycle': 'conflito', 'probability': 78, 'delta': '+13%', 'positive': false, 'pattern': '"Escalada → Conflito" Etapa 3/4', 'horizonDays': 90},
-      {'title': 'Crise econômica — Argentina', 'cycle': 'economico', 'probability': 62, 'delta': '+5%', 'positive': false, 'pattern': '"Resgate FMI → Estabilização parcial"', 'horizonDays': 180},
-      {'title': 'Mudança de governo — Hungria', 'cycle': 'politico', 'probability': 85, 'delta': '-8%', 'positive': true, 'pattern': 'Resultado: ✅ CORRETO', 'horizonDays': 365},
-      {'title': 'Avanço viral — IA generativa', 'cycle': 'tecnologico', 'probability': 91, 'delta': '+22%', 'positive': true, 'pattern': '"Adoção acelerada → Onda de conteúdo"', 'horizonDays': 30},
-      {'title': 'Onda de calor — Europa', 'cycle': 'ambiental', 'probability': 73, 'delta': '+8%', 'positive': false, 'pattern': '"La Niña → Amplitude térmica"', 'horizonDays': 60},
-    ];
-  }
+
 
   Widget _buildRegionSelector() {
     return Padding(

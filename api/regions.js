@@ -30,15 +30,19 @@ async function logError(level, source, message, context) {
 
 export default async function handler(req, res) {
   try {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+    // Try to fetch from Supabase first
+    let dbRegions = [];
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/regions?select=*&order=name.asc`, { headers });
+      dbRegions = await r.json();
+    } catch (_) {}
 
-  const roots = MOCK_REGIONS.filter(r => !r.parent_id);
-  const children = MOCK_REGIONS.filter(r => r.parent_id);
-  const tree = roots.map(r => ({ ...r, children: children.filter(c => c.parent_id === r.id) }));
+    const regions = Array.isArray(dbRegions) && dbRegions.length > 0 ? dbRegions : MOCK_REGIONS;
+    const roots = regions.filter(r => !r.parent_id);
+    const children = regions.filter(r => r.parent_id);
+    const tree = roots.map(r => ({ ...r, children: children.filter(c => c.parent_id === r.id) }));
 
-    return res.status(200).json({ regions: MOCK_REGIONS, tree });
+    return res.status(200).json({ regions, tree });
   } catch (e) {
     await logError('error', 'api-regions', e.message, {});
     return res.status(500).json({ error: e.message });
