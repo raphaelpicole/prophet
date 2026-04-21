@@ -38,6 +38,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
 
 // Sports keywords for exclusion (don't show sports news in Prophet)
 const SPORTS_KEYWORDS = [
+  // General terms
   'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
   'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
   'nba', 'basquete', 'basketball', 'vôlei', 'volleyball', 'tênis', 'tennis', 'golfe', 'golf',
@@ -46,9 +47,37 @@ const SPORTS_KEYWORDS = [
   'paulistão', 'mineirão', 'copa do brasil', 'campeonato brasileiro',
   'real madrid', 'barcelona', 'messi', 'cr7', 'ronaldo', 'neymar',
   'transferência', 'mercado da bola', 'contrato', 'renovação',
-  'corinthians', 'flamengo', 'palmeiras', 'são paulo', 'atlético', 'grêmio', 'internacional',
-  'série a', 'serie a', 'liga dos campeões',
+  // Brazilian teams
+  'corinthians', 'flamengo', 'palmeiras', 'são paulo', 'grêmio', 'internacional',
+  'atlético', 'atlético-mg', 'botafogo', 'vasco', 'santos', 'cruzeiro', 'fluminense',
+  'coritiba', 'santos', 'cec', 'athletico', 'paranaense', 'goias', 'ceará', 'sport',
+  'série a', 'serie a', 'liga dos campeões', 'copa libertadores',
+  'brasileirão', 'serie b', 'copa do brasil',
+  // Match keywords
+  'horário e onde assistir', 'ao vivo', 'transmissão', 'canal', 'tv',
+  'escalação', 'escalacao', 'titular', 'reserva',
 ];
+
+function cleanHtmlEntities(text) {
+  if (!text) return '';
+  return text
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8216;/g, "'")
+    .replace(/&#8217;/g, "'")
+    .replace(/&#215;/g, '×')
+    .replace(/&#38;/g, '&')
+    .replace(/&#60;/g, '<')
+    .replace(/&#62;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-f]{1,4});/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#([0-9]{1,5});/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+}
 
 function isSportsArticle(title, content) {
   const text = `${title} ${content || ''}`.toLowerCase();
@@ -424,8 +453,8 @@ async function upsertStory(article, analysis, log) {
   }
   
   const storyData = {
-    title: article.title.slice(0, 500),
-    main_subject: subject.slice(0, 100),
+    title: cleanHtmlEntities(article.title.slice(0, 500)),
+    main_subject: cleanHtmlEntities(subject.slice(0, 100)),
     cycle,
     region,
     summary: analysis.summary || null,
@@ -527,9 +556,9 @@ export default async function handler(req, res) {
         headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
         body: JSON.stringify({
           source_id: slugToId[item.sourceSlug] || null,
-          title: item.title.slice(0, 500),
+          title: cleanHtmlEntities(item.title.slice(0, 500)),
           url: item.url,
-          content: item.content?.slice(0, 2000) || '',
+          content: cleanHtmlEntities(item.content?.slice(0, 2000) || ''),
           published_at: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
           content_hash: h,
           status: 'pending',
@@ -654,6 +683,13 @@ async function generateHistoricalPredictions(stories, startTime, log) {
     ).then(r => r.json()).catch(() => []);
     if (Array.isArray(existing) && existing.length > 0) {
       log.push(`   ⏭️ Story ja tem previsao: ${(story.main_subject || '').slice(0, 20)}`);
+      continue;
+    }
+
+    // Skip sports stories (shouldn't have been created, but clean up existing)
+    if (isSportsArticle(story.main_subject || '', story.summary || '')) {
+      log.push(`   🚫 Removendo story esportiva: ${(story.main_subject || '').slice(0, 20)}`);
+      await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${story.id}`, { method: 'DELETE', headers });
       continue;
     }
 

@@ -1,10 +1,37 @@
-const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
-const headers = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json',
-};
+const SPORTS_KEYWORDS = [
+  'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
+  'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
+  'nba', 'basquete', 'basketball', 'vôlei', 'volleyball', 'tênis', 'tennis', 'golfe', 'golf',
+  'f1', 'fórmula 1', 'formula 1', 'moto gp', 'nascar', 'automobilismo',
+  'lance', 'globoesporte', 'ge.globo', 'esporte', 'sport', 'sports',
+  'paulistão', 'mineirão', 'copa do brasil', 'campeonato brasileiro',
+  'real madrid', 'barcelona', 'messi', 'cr7', 'ronaldo', 'neymar',
+  'transferência', 'mercado da bola', 'contrato', 'renovação',
+  'corinthians', 'flamengo', 'palmeiras', 'são paulo', 'grêmio', 'internacional',
+  'atlético', 'atlético-mg', 'botafogo', 'vasco', 'santos', 'cruzeiro', 'fluminense',
+  'coritiba', 'athletico', 'paranaense', 'goias', 'ceará', 'sport',
+  'série a', 'serie a', 'liga dos campeões', 'copa libertadores',
+  'brasileirão', 'serie b', 'copa do brasil',
+  'horário e onde assistir', 'ao vivo', 'transmissão', 'canal', 'tv',
+  'escalação', 'escalacao', 'titular', 'reserva',
+];
+
+function isSportsStory(story) {
+  const text = `${story.main_subject || ''} ${story.title || ''} ${story.summary || ''}`.toLowerCase();
+  return SPORTS_KEYWORDS.some(kw => text.includes(kw));
+}
+
+function cleanHtmlEntities(text) {
+  if (!text) return '';
+  return text
+    .replace(/&#8220;/g, '"').replace(/&#8221;/g, '"')
+    .replace(/&#8216;/g, "'").replace(/&#8217;/g, "'")
+    .replace(/&#215;/g, '×').replace(/&#38;/g, '&')
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-f]{1,4});/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#([0-9]{1,5});/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+}
 
 async function logError(level, source, message, context) {
   try {
@@ -75,8 +102,21 @@ export default async function handler(req, res) {
       }
     }
 
+    // Filter out sports stories
+    const filteredStories = stories.filter(s => !isSportsStory(s));
+
     return res.status(200).json({
-      stories,
+      stories: filteredStories.map(s => ({
+        ...s,
+        title: cleanHtmlEntities(s.title || ''),
+        main_subject: cleanHtmlEntities(s.main_subject || ''),
+        summary: cleanHtmlEntities(s.summary || ''),
+        preview_articles: s.preview_articles ? s.preview_articles.map(a => ({
+          ...a,
+          title: cleanHtmlEntities(a.title || ''),
+          summary: cleanHtmlEntities(a.summary || ''),
+        })) : [],
+      })),
       pagination: { limit: parseInt(limit), offset: parseInt(offset) },
     });
   } catch (e) {
@@ -84,3 +124,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 }
+module.exports = { SPORTS_KEYWORDS, isSportsStory, cleanHtmlEntities };
