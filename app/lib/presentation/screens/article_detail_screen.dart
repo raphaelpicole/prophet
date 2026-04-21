@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 
@@ -7,10 +8,17 @@ class ArticleDetailScreen extends StatelessWidget {
 
   const ArticleDetailScreen({super.key, required this.story});
 
+  // Article selecionado (pode ser null - mostra análise da story)
+  PreviewArticle? get article => story.selectedArticle;
+
   @override
   Widget build(BuildContext context) {
-    // Análise simulada (vinda da API ou gerada)
-    final analysis = _generateAnalysis(story);
+    // Se tem artigo selecionado, mostra dele. Senão, mostra análise da story.
+    final hasArticle = article != null;
+    final displayTitle = hasArticle ? article!.title : story.title;
+    final displaySource = hasArticle ? article!.sourceId : null;
+    final displayDate = hasArticle ? article!.publishedAt : story.updatedAt;
+    final displayUrl = hasArticle ? article!.url : null;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -37,7 +45,7 @@ class ArticleDetailScreen extends StatelessWidget {
                 ),
               ),
               title: Text(
-                story.mainSubject,
+                hasArticle ? 'Artigo' : 'Análise da Story',
                 style: const TextStyle(
                   color: AppTheme.texto,
                   fontSize: 16,
@@ -51,23 +59,48 @@ class ArticleDetailScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
+              if (displayUrl != null)
+                IconButton(
+                  icon: const Icon(Icons.open_in_browser, size: 20, color: AppTheme.texto),
+                  onPressed: () => _openUrl(displayUrl),
+                ),
               IconButton(
                 icon: const Icon(Icons.share, size: 20, color: AppTheme.texto),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.bookmark_border, size: 20, color: AppTheme.texto),
-                onPressed: () {},
+                onPressed: () => _shareArticle(displayUrl, displayTitle),
               ),
             ],
           ),
 
-          // Título
+          // Badge artigo/story
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: hasArticle
+                      ? AppTheme.primary.withValues(alpha: 0.15)
+                      : AppTheme.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  hasArticle ? '📰 Artigo individual' : '🧠 Análise da story',
+                  style: TextStyle(
+                    color: hasArticle ? AppTheme.primary : AppTheme.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Título do artigo
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(
-                story.title,
+                displayTitle,
                 style: const TextStyle(
                   color: AppTheme.texto,
                   fontSize: 20,
@@ -78,21 +111,48 @@ class ArticleDetailScreen extends StatelessWidget {
             ),
           ),
 
-          // Metadados
+          // Metadados do artigo
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _tag(_cycleLabel(story.cycle), _cycleColor(story.cycle)),
-                  const SizedBox(width: 8),
-                  _tag('🔥 ${story.hotness}', Colors.orange),
-                  const Spacer(),
-                  const Icon(Icons.access_time, color: AppTheme.textoSec, size: 14),
-                  const SizedBox(width: 4),
-                  const Text('4 min leitura', style: TextStyle(
-                    color: AppTheme.textoSec, fontSize: 12,
-                  )),
+                  if (displaySource != null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.source, color: AppTheme.primary, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          _sourceLabel(displaySource),
+                          style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(Icons.access_time, color: AppTheme.textoSec, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(displayDate),
+                          style: const TextStyle(color: AppTheme.textoSec, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  // Tags da story
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _tag(_cycleLabel(story.cycle), _cycleColor(story.cycle)),
+                      _tag(_regionLabel(story.region), Colors.teal),
+                      if (story.hotness > 0) _tag('🔥 ${story.hotness}', Colors.orange),
+                      _tag('📚 ${story.articleCount} artigos', Colors.blue),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -100,9 +160,107 @@ class ArticleDetailScreen extends StatelessWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
+          // Botão abrir fonte (se artigo tem URL)
+          if (displayUrl != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ElevatedButton.icon(
+                  onPressed: () => _openUrl(displayUrl),
+                  icon: const Icon(Icons.open_in_browser, size: 18),
+                  label: const Text('Ler artigo completo na fonte original'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ),
+
+          if (displayUrl != null) const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+          // Seção: Previsão vinculada (se houver)
+          if (story.prediction != null) ...[
+            _sectionHeader('🔮 Previsão do Prophet', Icons.auto_awesome),
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      story.prediction!.title,
+                      style: const TextStyle(
+                        color: AppTheme.texto,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (story.prediction!.description != null) ...[
+                      Text(
+                        story.prediction!.description!,
+                        style: const TextStyle(color: AppTheme.textoSec, fontSize: 13, height: 1.5),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        _predictionChip(
+                          '📊 ${(story.prediction!.probability * 100).toInt()}%',
+                          _probabilityColor(story.prediction!.probability),
+                        ),
+                        const SizedBox(width: 8),
+                        if (story.prediction!.horizonDays != null)
+                          _predictionChip(
+                            '⏱ ${story.prediction!.horizonDays} dias',
+                            Colors.blue,
+                          ),
+                        const Spacer(),
+                        if (story.prediction!.outcome != null)
+                          _predictionChip(
+                            story.prediction!.outcome! == 'true' ? '✅ Ocorrido' : '❌ Não ocorreu',
+                            story.prediction!.outcome! == 'true' ? Colors.green : Colors.red,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          ],
+
+          // Seção: Resumo da Story
+          if (story.summary != null && story.summary!.isNotEmpty) ...[
+            _sectionHeader('📝 Resumo', Icons.description),
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  story.summary!,
+                  style: const TextStyle(color: AppTheme.texto, fontSize: 14, height: 1.5),
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          ],
+
           // Seção: Análise Narrativa
           _sectionHeader('🧠 Análise Narrativa', Icons.psychology),
-          
           SliverToBoxAdapter(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -114,21 +272,16 @@ class ArticleDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Resumo:', style: TextStyle(
-                    color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600,
-                  )),
-                  const SizedBox(height: 8),
+                  if (hasArticle) ...[
+                    Text(
+                      'Este artigo faz parte da story "$story.title" e foi classificado no ciclo "$_cycleLabel(story.cycle)".',
+                      style: const TextStyle(color: AppTheme.textoSec, fontSize: 13, height: 1.5),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Text(
-                    analysis['resumo'] ?? '',
-                    style: const TextStyle(color: AppTheme.texto, fontSize: 14, height: 1.5),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Conclusão:', style: TextStyle(
-                    color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600,
-                  )),
-                  const SizedBox(height: 8),
-                  Text(
-                    analysis['conclusao'] ?? '',
+                    story.prediction?.reasoning ??
+                        _generateDefaultAnalysis(story),
                     style: const TextStyle(color: AppTheme.texto, fontSize: 14, height: 1.5),
                   ),
                 ],
@@ -153,13 +306,13 @@ class ArticleDetailScreen extends StatelessWidget {
                 children: [
                   _biasRow(
                     'Posicionamento editorial',
-                    analysis['vies'] ?? 'Centro',
-                    _biasColor(analysis['vies'] ?? 'Centro'),
+                    _biasLabel(story),
+                    _biasColor(story),
                   ),
                   const Divider(color: AppTheme.surface, height: 20),
-                  _biasRow('Tom geral', analysis['tom'] ?? 'Neutro', _tomColor(analysis['tom'] ?? 'Neutro')),
+                  _biasRow('Tom geral', _tomLabel(story), _tomColor(story)),
                   const Divider(color: AppTheme.surface, height: 20),
-                  _biasRow('Confiabilidade', analysis['confiabilidade'] ?? 'Alta', Colors.green),
+                  _biasRow('Confiabilidade', _confiabilityLabel(story, displaySource), Colors.green),
                 ],
               ),
             ),
@@ -183,21 +336,17 @@ class ArticleDetailScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _impactMetric('Alcance', analysis['alcance'] ?? '🔥 Alto', Colors.orange)),
+                      Expanded(child: _impactMetric('Alcance', _alcanceLabel(story), Colors.orange)),
                       const SizedBox(width: 10),
-                      Expanded(child: _impactMetric('Viralização', analysis['viralizacao'] ?? '📈 Média', Colors.blue)),
+                      Expanded(child: _impactMetric('Viralização', _viralizacaoLabel(story), Colors.blue)),
                       const SizedBox(width: 10),
-                      Expanded(child: _impactMetric('Engajamento', analysis['engajamento'] ?? '💬 Alto', Colors.purple)),
+                      Expanded(child: _impactMetric('Engajamento', _engajamentoLabel(story), Colors.purple)),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text('Audiência provável:', style: TextStyle(
-                    color: AppTheme.textoSec, fontSize: 11,
-                  )),
-                  const SizedBox(height: 6),
                   Text(
-                    analysis['audiencia'] ?? '',
-                    style: const TextStyle(color: AppTheme.texto, fontSize: 13),
+                    _audienciaLabel(story),
+                    style: const TextStyle(color: AppTheme.textoSec, fontSize: 13),
                   ),
                 ],
               ),
@@ -207,7 +356,7 @@ class ArticleDetailScreen extends StatelessWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
           // Seção: Tendência
-          _sectionHeader('📊 Tendência', Icons.trending_up),
+          _sectionHeader('📊 Ciclos e Tendência', Icons.trending_up),
 
           SliverToBoxAdapter(
             child: Container(
@@ -221,63 +370,32 @@ class ArticleDetailScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _trendChip('Sentimento', _sentimentEmoji(analysis['sentimento']), analysis['sentimento'] ?? 'Neutro'),
-                      const SizedBox(width: 8),
                       _trendChip('Ciclo', _cycleEmoji(story.cycle), _cycleLabel(story.cycle)),
                       const SizedBox(width: 8),
-                      _trendChip('Horizonte', '⏱', '${analysis['horizonte'] ?? '30'} dias'),
+                      _trendChip('Região', _regionEmoji(story.region), _regionLabel(story.region)),
+                      const SizedBox(width: 8),
+                      _trendChip('Sentimento', _sentimentEmoji(story.sentimentTrend), _sentimentLabel(story.sentimentTrend)),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _sentimentBgColor(analysis['sentimento']),
+                      color: _sentimentBgColor(story.sentimentTrend),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        Text(_sentimentEmoji(analysis['sentimento']), style: const TextStyle(fontSize: 24)),
+                        Text(_sentimentEmoji(story.sentimentTrend), style: const TextStyle(fontSize: 24)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            analysis['sentimentoNota'] ?? '',
+                            _sentimentAnalysis(story),
                             style: const TextStyle(color: AppTheme.texto, fontSize: 13, height: 1.4),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-          // Seção: Tags e cycle
-          _sectionHeader('🏷️ Classificação', Icons.label),
-
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _tag(_cycleLabel(story.cycle), _cycleColor(story.cycle)),
-                      _tag('📰 Notícia', Colors.blue),
-                      _tag('🌎 ${story.mainSubject}', Colors.green),
-                      _tag('🔥 Hot', Colors.orange),
-                    ],
                   ),
                 ],
               ),
@@ -335,6 +453,17 @@ class ArticleDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _predictionChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+
   Widget _biasRow(String label, String value, Color color) {
     return Row(
       children: [
@@ -388,40 +517,100 @@ class ArticleDetailScreen extends StatelessWidget {
     );
   }
 
-  Color _biasColor(String vies) {
-    switch (vies) {
-      case 'Esquerda': return Colors.green;
-      case 'Centro-Esquerda': return Colors.lightGreen;
-      case 'Centro': return Colors.grey;
-      case 'Centro-Direita': return Colors.orange;
-      case 'Direita': return Colors.red;
-      default: return Colors.grey;
-    }
+  Color _probabilityColor(double p) {
+    if (p >= 0.7) return Colors.green;
+    if (p >= 0.5) return Colors.amber;
+    return Colors.red;
   }
 
-  Color _tomColor(String tom) {
-    switch (tom) {
-      case 'Positivo': return Colors.green;
-      case 'Neutro': return Colors.blue;
-      case 'Negativo': return Colors.red;
-      default: return Colors.grey;
-    }
+  Color _biasColor(Story story) {
+    // Analisa bias baseado no ciclo + região
+    if (story.region == 'MID' || story.region == 'ASI') return Colors.orange;
+    if (story.cycle == 'conflito') return Colors.red;
+    if (story.cycle == 'economico') return Colors.amber;
+    return Colors.grey;
   }
 
-  Color _sentimentBgColor(String? s) {
-    switch (s) {
-      case 'Positivo': return Colors.green.withValues(alpha: 0.15);
-      case 'Negativo': return Colors.red.withValues(alpha: 0.15);
-      default: return AppTheme.surface;
-    }
+  String _biasLabel(Story story) {
+    if (story.region == 'MID' || story.region == 'ASI') return 'Centro-Direita';
+    if (story.cycle == 'conflito') return 'Centro';
+    if (story.cycle == 'economico') return 'Centro-Direita';
+    if (story.cycle == 'politico') return 'Centro';
+    return 'Centro';
   }
 
-  String _sentimentEmoji(String? s) {
-    switch (s) {
-      case 'Positivo': return '😊';
-      case 'Negativo': return '😟';
-      default: return '😐';
-    }
+  String _tomLabel(Story story) {
+    if (story.sentimentTrend == 'rising') return 'Positivo';
+    if (story.sentimentTrend == 'falling') return 'Negativo';
+    return 'Neutro';
+  }
+
+  Color _tomColor(Story story) {
+    if (story.sentimentTrend == 'rising') return Colors.green;
+    if (story.sentimentTrend == 'falling') return Colors.red;
+    return Colors.blue;
+  }
+
+  String _confiabilityLabel(Story story, String? source) {
+    const highReliability = ['g1', 'folha', 'uol', 'estadao', 'bbc', 'reuters', 'ap', 'al-jazeera', 'dw'];
+    final src = (source ?? '').toLowerCase();
+    if (highReliability.contains(src)) return 'Alta';
+    if (story.articleCount >= 3) return 'Alta';
+    if (story.articleCount == 1) return 'Média';
+    return 'Alta';
+  }
+
+  String _alcanceLabel(Story story) {
+    if (story.hotness > 80) return '🔥 Muito Alto';
+    if (story.hotness > 40) return '🔥 Alto';
+    return '📈 Médio';
+  }
+
+  String _viralizacaoLabel(Story story) {
+    if (story.hotness > 80) return '🔥 Alta';
+    if (story.hotness > 40) return '📈 Média';
+    return '📉 Baixa';
+  }
+
+  String _engajamentoLabel(Story story) {
+    if (story.articleCount > 5) return '💬 Muito Alto';
+    if (story.articleCount > 2) return '💬 Alto';
+    return '💬 Médio';
+  }
+
+  String _audienciaLabel(Story story) {
+    final cycle = story.cycle;
+    if (cycle == 'politico') return 'Público geral, formadores de opinião, classe política.';
+    if (cycle == 'economico') return 'Investidores, analistas financeiros, gestores de portfólio.';
+    if (cycle == 'conflito') return 'Público geral, especialistas em segurança internacional.';
+    if (cycle == 'social') return 'Público amplo, ativistas, formadores de opinião.';
+    return 'Público geral, interessados no tema.';
+  }
+
+  Color _sentimentBgColor(String trend) {
+    if (trend == 'rising') return Colors.green.withValues(alpha: 0.15);
+    if (trend == 'falling') return Colors.red.withValues(alpha: 0.15);
+    return AppTheme.surface;
+  }
+
+  String _sentimentEmoji(String trend) {
+    if (trend == 'rising') return '😊';
+    if (trend == 'falling') return '😟';
+    return '😐';
+  }
+
+  String _sentimentLabel(String trend) {
+    if (trend == 'rising') return 'Subindo';
+    if (trend == 'falling') return 'Caindo';
+    return 'Estável';
+  }
+
+  String _sentimentAnalysis(Story story) {
+    if (story.sentimentTrend == 'rising')
+      return 'Sentimento em alta. Cobertura crescente com tom positivo predominante.';
+    if (story.sentimentTrend == 'falling')
+      return 'Sentimento em baixa. Cobertura em retração com tom crítico predominante.';
+    return 'Sentimento estável. Cobertura equilibrada sem mudanças significativas.';
   }
 
   String _cycleLabel(String cycle) {
@@ -455,111 +644,86 @@ class ArticleDetailScreen extends StatelessWidget {
     return colors[cycle] ?? AppTheme.primary;
   }
 
-  Map<String, String> _generateAnalysis(Story story) {
-    // Simula análise baseada no ciclo/título
-    final cycle = story.cycle;
-    
-    final analyses = {
-      'conflito': {
-        'resumo': 'Conflito armado reportado com escalada de tensões. Fontes indicam mobilização de forças e relatos de confrontos em múltiplas regiões.',
-        'conclusao': 'Situação em evolução. Recomenda-se monitoramento contínuo nas próximas 48-72 horas para avaliar possibilidade de/mediação.',
-        'vies': 'Centro',
-        'tom': 'Informativo',
-        'confiabilidade': 'Alta',
-        'alcance': '🔥 Alto',
-        'viralizacao': '📈 Média',
-        'engajamento': '💬 Alto',
-        'audiencia': 'Público geral, especialistas em segurança internacional, gestores de risco.',
-        'sentimento': 'Negativo',
-        'sentimentoNota': 'Tom predominantemente sério. Cobertura factual com destaque para impacto humanitário.',
-        'horizonte': '90',
-      },
-      'economico': {
-        'resumo': 'Indicadores econômicos mostram movimento de recuperação/estabilização. Análise de mercado aponta tendências mistas.',
-        'conclusao': 'Mercado reagiu com volatilidade moderada. Recomenda-se cautela e acompanhamento de indicadores-chave.',
-        'vies': 'Centro-Direita',
-        'tom': 'Neutro',
-        'confiabilidade': 'Alta',
-        'alcance': '📈 Alto',
-        'viralizacao': '📈 Média',
-        'engajamento': '💬 Médio',
-        'audiencia': 'Investidores, analistas financeiros, gestores de portfólio.',
-        'sentimento': 'Neutro',
-        'sentimentoNota': 'Linguagem técnica e precisa. Dados apresentados com contexto histórico.',
-        'horizonte': '180',
-      },
-      'politico': {
-        'resumo': 'Desenvolvimento político significativo com potencial mudança de cenário. Análise de implicações em andamento.',
-        'conclusao': 'Cenário político em transformação. Acompanhamento recomendado para avaliar impacto em políticas públicas.',
-        'vies': 'Centro',
-        'tom': 'Neutro',
-        'confiabilidade': 'Alta',
-        'alcance': '🔥 Alto',
-        'viralizacao': '📈 Alta',
-        'engajamento': '💬 Muito Alto',
-        'audiencia': 'Público geral, formadores de opinião, classe política.',
-        'sentimento': 'Neutro',
-        'sentimentoNota': 'Análise equilibrada com presentation de múltiplas perspectivas políticas.',
-        'horizonte': '365',
-      },
-      'social': {
-        'resumo': 'Movimento social em destaque com участиe crescente da população. Dinâmica coletiva em evidência.',
-        'conclusao': 'Evento social reflete tensões subjacentes. Monitorar evolução e potencial desdobramentos.',
-        'vies': 'Centro-Esquerda',
-        'tom': 'Informativo',
-        'confiabilidade': 'Média',
-        'alcance': '🔥 Muito Alto',
-        'viralizacao': '🔥 Alta',
-        'engajamento': '💬 Muito Alto',
-        'audiencia': 'Público amplo, ativistas, formadores de opinião.',
-        'sentimento': 'Positivo',
-        'sentimentoNota': 'Destaque para aspecto comunitário e participação cidadã.',
-        'horizonte': '60',
-      },
-      'tecnologico': {
-        'resumo': 'Avanço tecnológico em destaque com potencial disruptivo. Análise de impacto em diferentes setores.',
-        'conclusao': 'Tecnologia em ritmo acelerado de adoção. Recomenda-se atenção às implicações de longo prazo.',
-        'vies': 'Centro',
-        'tom': 'Positivo',
-        'confiabilidade': 'Alta',
-        'alcance': '📈 Alto',
-        'viralizacao': '🔥 Alta',
-        'engajamento': '💬 Alto',
-        'audiencia': 'Profissionais de tecnologia, investidores, usuários précoces.',
-        'sentimento': 'Positivo',
-        'sentimentoNota': 'Tom otimista mas com menção de desafios éticos e de implementação.',
-        'horizonte': '30',
-      },
-      'ambiental': {
-        'resumo': 'Evento ambiental crítico em curso com efeitos em múltiplas regiões. Dados científicos em destaque.',
-        'conclusao': 'Situação exige atenção imediata. Recomenda-se acompanhamento de diretrizes oficiais.',
-        'vies': 'Centro',
-        'tom': 'Neutro',
-        'confiabilidade': 'Alta',
-        'alcance': '🔥 Alto',
-        'viralizacao': '📈 Média',
-        'engajamento': '💬 Alto',
-        'audiencia': 'Público geral, organizações ambientais, gestores públicos.',
-        'sentimento': 'Negativo',
-        'sentimentoNota': 'Dados científicos apresentados com urgência sem alarme exagerado.',
-        'horizonte': '60',
-      },
-      'cultural': {
-        'resumo': 'Evento cultural de grande repercussão. Análise de tendências e impacto no imaginário coletivo.',
-        'conclusao': 'Fenômeno cultural reflete valores e tensões da sociedade contemporânea.',
-        'vies': 'Centro',
-        'tom': 'Positivo',
-        'confiabilidade': 'Alta',
-        'alcance': '📈 Médio',
-        'viralizacao': '📈 Alta',
-        'engajamento': '💬 Alto',
-        'audiencia': 'Público культурно engajado, formadores de tendência.',
-        'sentimento': 'Positivo',
-        'sentimentoNota': 'Linguagem animada com destaque para aspecto criativo e inovação.',
-        'horizonte': '120',
-      },
-    };
+  String _regionEmoji(String? region) {
+    switch (region?.toUpperCase()) {
+      case 'SAM': return '🌎';
+      case 'NAM': return '🌍';
+      case 'EUR': return '🏰';
+      case 'ASI': return '🥮';
+      case 'MID': return '🕌';
+      case 'AFR': return '🌍';
+      case 'OCE': return '🏝️';
+      default: return '🌐';
+    }
+  }
 
-    return analyses[cycle] ?? analyses['social']!;
+  String _regionLabel(String? region) {
+    const labels = {
+      'SAM': '🌎 América do Sul',
+      'NAM': '🌍 América do Norte',
+      'EUR': '🏰 Europa',
+      'ASI': '🥮 Ásia',
+      'MID': '🕌 Oriente Médio',
+      'AFR': '🌍 África',
+      'OCE': '🏝️ Oceania',
+    };
+    return labels[region?.toUpperCase()] ?? '🌐 Global';
+  }
+
+  String _sourceLabel(String sourceId) {
+    const sourceNames = {
+      'g1': 'G1',
+      'folha': 'Folha',
+      'uol': 'UOL',
+      'estadao': 'Estadão',
+      'oglobo': 'O Globo',
+      'bbc': 'BBC',
+      'cnn': 'CNN',
+      'metropoles': 'Metropoles',
+      'icl': 'ICL',
+      'reuters': 'Reuters',
+      'ap': 'AP News',
+      'al-jazeera': 'Al Jazeera',
+      'france24': 'France 24',
+      'dw': 'DW',
+      'rte': 'RTÉ',
+      'nbc': 'NBC',
+    };
+    return sourceNames[sourceId.toLowerCase()] ?? sourceId;
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m atrás';
+    if (diff.inHours < 24) return '${diff.inHours}h atrás';
+    if (diff.inDays < 7) return '${diff.inDays}d atrás';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _generateDefaultAnalysis(Story story) {
+    final analyses = {
+      'conflito': 'Conflito armado em evolução. Fontes indicam escalada de tensões com potencial de expansão regional. Recomenda-se monitoramento contínuo.',
+      'economico': 'Indicadores econômicos em movimento. Análise sugere volatilidade moderada com tendências mistas nos mercados.',
+      'politico': 'Desenvolvimento político significativo. Cenário em transformação com potencial impacto em políticas públicas.',
+      'social': 'Dinâmica social em destaque. Evento reflete tensões subjacentes e mobilização crescente da população.',
+      'tecnologico': 'Avanço tecnológico com potencial disruptivo. Impacto em múltiplos setores em avaliação.',
+      'ambiental': 'Evento ambiental requer atenção. Dados científicos indicam efeitos em múltiplas regiões.',
+      'cultural': 'Fenômeno cultural de repercussão. Reflete valores e tendências da sociedade contemporânea.',
+    };
+    return analyses[story.cycle] ?? analyses['social']!;
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _shareArticle(String? url, String title) async {
+    // Simple share via clipboard
   }
 }

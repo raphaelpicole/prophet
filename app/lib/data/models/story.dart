@@ -60,6 +60,8 @@ class Story {
   final String? region;
   final List<PreviewArticle> previewArticles;
   final Prediction? prediction;
+  // Article selecionado na tela de detail (para mostrar info do artigo específico)
+  final PreviewArticle? selectedArticle;
 
   Story({
     required this.id,
@@ -74,6 +76,7 @@ class Story {
     this.region,
     this.previewArticles = const [],
     this.prediction,
+    this.selectedArticle,
   });
 
   factory Story.fromJson(Map<String, dynamic> json) {
@@ -94,6 +97,9 @@ class Story {
               .toList() ??
           [],
       prediction: json['prediction'] != null ? Prediction.fromJson(json['prediction']) : null,
+      selectedArticle: json['selectedArticle'] != null
+          ? PreviewArticle.fromJson(json['selectedArticle'])
+          : null,
     );
   }
 }

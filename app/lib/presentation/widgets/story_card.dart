@@ -283,59 +283,79 @@ class _StoryCardState extends State<StoryCard> {
   }
 
   Widget _articlePreviewItem(PreviewArticle article) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppTheme.surface, width: 0.5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(top: 5, right: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.primary,
-              borderRadius: BorderRadius.circular(3),
+    return InkWell(
+      onTap: () {
+        final storyWithArticle = Story(
+          id: widget.story.id,
+          title: widget.story.title,
+          summary: widget.story.summary,
+          mainSubject: widget.story.mainSubject,
+          cycle: widget.story.cycle,
+          sentimentTrend: widget.story.sentimentTrend,
+          hotness: widget.story.hotness,
+          articleCount: widget.story.articleCount,
+          updatedAt: widget.story.updatedAt,
+          region: widget.story.region,
+          previewArticles: widget.story.previewArticles,
+          prediction: widget.story.prediction,
+          selectedArticle: article,
+        );
+        Navigator.pushNamed(context, '/article', arguments: storyWithArticle);
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppTheme.surface, width: 0.5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              margin: const EdgeInsets.only(top: 5, right: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.primary,
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  article.title,
-                  style: const TextStyle(
-                    color: AppTheme.texto,
-                    fontSize: 12,
-                    height: 1.3,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    article.title,
+                    style: const TextStyle(
+                      color: AppTheme.texto,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text(
-                      _sourceLabel(article.sourceId),
-                      style: const TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Text(
+                        _sourceLabel(article.sourceId),
+                        style: const TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _timeAgo(article.publishedAt),
-                      style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 8),
+                      Text(
+                        _timeAgo(article.publishedAt),
+                        style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
