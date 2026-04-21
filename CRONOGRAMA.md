@@ -122,7 +122,7 @@ Supabase (banco)
 ---
 
 ## 🔑 Notas Importantes
-- **Production URL**: https://prophet-irgoesl48-raphaelpicoles-projects.vercel.app
+- **Production URL**: https://prophet-nofpwylvr-raphaelpicoles-projects.vercel.app
 - **Repo**: github.com/raphaelpicole/prophet
 - **OLLAMA_API_KEY**: configurada no Vercel (gemma4:31b)
 - **SUPABASE_KEY**: hardcoded nos API files
@@ -130,6 +130,15 @@ Supabase (banco)
 - **Vercel Hobby limit**: 12 serverless functions (usando 8 ✅)
 - **Sports filter**: keywords expandidas cobrindo times brasileiros e termos esportivos
 - **Predictions filter**: seed events ocultos da UI (`source=prophet-historical` sem `story_id`)
+- **Foco do produto**: análise de viés midiático — impacto no Brasil, mundo e conflitos
+
+---
+
+## ⚠️ Decisões Pendentes (antes do lançamento)
+- [ ] **Monetização** — definir modelo antes de lançar (freemium, API B2B, relatórios, newsletter, ads?)
+  - Trade-off: ads conflita com missão (anunciantes = financiadores da mídia que o Prophet analisa)
+  - Prioridade: API B2B ou relatórios como fonte de receita
+
 
 ---
 
