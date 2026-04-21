@@ -581,9 +581,9 @@ export default async function handler(req, res) {
       log.push(`   📝 Artigos analisados: ${articlesAnalyzed}`);
     }
 
-    // 6. Stats
+    // 6. Stats (fetch stories AFTER upsertStory to include newly created ones)
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,cycle,region,main_subject,summary`, { headers }).then(r => r.json()).catch(() => []);
+    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,cycle,region,main_subject,summary&order=updated_at.desc&limit=20`, { headers }).then(r => r.json()).catch(() => []);
     const analyzedRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?status=eq.analyzed&select=id`, { headers }).then(r => r.json()).catch(() => []);
     
     log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} total | ${Array.isArray(analyzedRes) ? analyzedRes.length : '?'} analisados`);
@@ -600,10 +600,10 @@ export default async function handler(req, res) {
       log.push(`   Regiões: ${JSON.stringify(regions)}`);
     }
     
-    // 7. Generate historical predictions
-    const storiesForPred = Array.isArray(storiesRes) ? storiesRes : [];
-    if (OLLAMA_API_KEY && storiesForPred.length > 0) {
-      const predCount = await generateHistoricalPredictions(storiesForPred.slice(0, 5), startTime, log);
+    // 7. Generate historical predictions for newest stories
+    const recentStories = Array.isArray(storiesRes) ? storiesRes.slice(0, 10) : [];
+    if (OLLAMA_API_KEY && recentStories.length > 0) {
+      const predCount = await generateHistoricalPredictions(recentStories, startTime, log);
       log.push(`🔮 Previsoes historicas geradas: ${predCount}`);
     }
 
