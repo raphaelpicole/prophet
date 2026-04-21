@@ -187,15 +187,24 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Widget _previewArticleCard(PreviewArticle a) {
-    final url = a.url;
     return GestureDetector(
-      onTap: () async {
-        if (url != null && url.isNotEmpty) {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          }
-        }
+      onTap: () {
+        final storyWithArticle = Story(
+          id: widget.story.id,
+          title: widget.story.title,
+          summary: widget.story.summary,
+          mainSubject: widget.story.mainSubject,
+          cycle: widget.story.cycle,
+          sentimentTrend: widget.story.sentimentTrend,
+          hotness: widget.story.hotness,
+          articleCount: widget.story.articleCount,
+          updatedAt: widget.story.updatedAt,
+          region: widget.story.region,
+          previewArticles: widget.story.previewArticles,
+          prediction: widget.story.prediction,
+          selectedArticle: a,
+        );
+        Navigator.pushNamed(context, '/article', arguments: storyWithArticle);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -222,7 +231,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                   ),
                 ),
                 const Spacer(),
-                if (url != null && url.isNotEmpty)
+                if (a.url != null && a.url!.isNotEmpty)
                   const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
               ],
             ),
