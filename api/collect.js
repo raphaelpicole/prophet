@@ -652,6 +652,13 @@ export default async function handler(req, res) {
       log.push(`   Regiões: ${JSON.stringify(regions)}`);
     }
     
+    // Database size monitoring
+    try {
+      const articlesCount = Array.isArray(countRes) ? countRes.length : 0;
+      const storiesCount = Array.isArray(storiesRes) ? storiesRes.length : 0;
+      log.push(`📊 DB: ${articlesCount} artigos | ${storiesCount} stories`);
+    } catch (e) {}
+    
     // 7. Generate historical predictions for newest stories
     const recentStories = Array.isArray(storiesRes) ? storiesRes.slice(0, 10) : [];
     if (OLLAMA_API_KEY && recentStories.length > 0) {
