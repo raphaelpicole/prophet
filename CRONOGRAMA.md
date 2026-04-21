@@ -73,22 +73,27 @@
 
 ## ✅ Fase 6 — Polimento & QA (20-21/abr)
 - [x] **Sports filter no collect** — filtro expandido (times brasileiros: Atlético-MG, Coritiba, Flamengo, etc.)
-- [x] **Sports stories deletadas** — 10 stories esportivas removidas do banco
+- [x] **Sports stories deletadas** — 11 stories esportivas/celebridades removidas do banco
 - [x] **Article 2+ para prediction** — só gera previsão se story tem ≥2 artigos (mais realista)
 - [x] **Sports filter na API** — filtro em `/api/stories` antes de retornar ao Flutter
 - [x] **Vercel API consolidation** — 8 serverless functions (≤12 limit do Hobby plan)
 - [x] **Bug fixes** — storiesRes query movida para depois do insert; JSON parse de predictions
 - [x] **CI/CD GitHub Actions** — `.github/workflows/ci.yml` com test + lint jobs
+- [x] **Celebridades filter** — BBB, reality shows, anitta, cinema, shows, turnês filtrados
+- [x] **Mapa desabilitado** — tab removido da navegação (foco em análise de viés)
+- [x] **Timeline colapsável no RadarScreen** — gráfico de ciclos + stories recentes no topo
+- [x] **Story detail melhorado** — cards de artigos com fonte, título, summary e tempo relativo
+- [x] **PWA manifest corrigido** — theme-color #0D1117, ícones verificados
+- [x] **indicators.js com dados reais** — agregação de stories últimos 7 dias (ciclos, regiões, hot stories)
+- [x] **Tabela analysis_summary** — migration `007_analysis_summary.sql` criada
 
 ---
 
-## 📋 Backlog
-- [ ] `analysis` table populada via LLM (mock atual)
-- [ ] LLM analysis pipeline completo (`grouper.ts` wiring)
-- [ ] Agregação de artigos (ideal: 5-15 por story)
-- [ ] Mais fontes RSS
-- [ ] Timeline/trends no RadarScreen
+## 📋 Backlog (pós-lançamento)
+- [ ] Agregação de artigos (ideal: 5-15 por story) — melhorar grouping no collect
+- [ ] Mais fontes RSS — decisão no final do projeto
 - [ ] Push notifications (web push)
+- [ ] LLM analysis pipeline completo (`grouper.ts` wiring)
 
 ---
 
@@ -96,27 +101,28 @@
 
 ```
 Flutter Web (app/)
-  └─ ApiService → https://prophet-irgoesl48-raphaelpicoles-projects.vercel.app/api
+  └─ ApiService → https://prophet-nofpwylvr-raphaelpicoles-projects.vercel.app/api
 
 Vercel (serverless functions — 8 total)
   └─ api/collect.js     → pipeline completo (16 fontes: 10 BR + 6 internacional)
-  └─ api/stories.js     → Supabase stories (com preview_articles, filtro sports, HTML decode)
-  └─ api/story.js       → Supabase articles (via story_articles junction) + prediction
+  └─ api/stories.js     → Supabase stories (filtro sports/celebridades, HTML decode)
+  └─ api/story.js       → Supabase articles (junction) + prediction
   └─ api/misc.js        → consolidated: hello, regions, sources, historical
-  └─ api/data.js        → consolidated: predictions, logs (sem seed events na UI)
+  └─ api/data.js        → consolidated: predictions, logs
   └─ api/admin-panel.js → consolidated: admin actions + tables
-  └─ api/indicators.js  → agregações Supabase
+  └─ api/indicators.js  → agregações reais (7 dias)
   └─ api/health.js      → health check
 
 Supabase (banco)
   └─ raw_articles (~420 artigos)
   └─ story_articles (junction table)
   └─ sources (16 fontes: 10 BR + 6 internacional)
-  └─ stories (~101 stories com region + cycle)
+  └─ stories (~90 stories, filtro sports/celebridades)
   └─ regions (8 regiões seed)
-  └─ predictions (35 previsões reais, 71% accuracy, Brier 0.40)
-  └─ predictions (34 seed events históricos — contexto LLM, oculto da UI)
-  └─ logs (monitorização de erros)
+  └─ analysis_summary (diário: ciclos+regiões)
+  └─ predictions (35 reais, 71% accuracy)
+  └─ predictions (34 seed events históricos — contexto LLM)
+  └─ logs (monitorização)
 ```
 
 ---
@@ -127,18 +133,15 @@ Supabase (banco)
 - **OLLAMA_API_KEY**: configurada no Vercel (gemma4:31b)
 - **SUPABASE_KEY**: hardcoded nos API files
 - **RLS**: tabelas predictions e logs com policies para anon insert/read
-- **Vercel Hobby limit**: 12 serverless functions (usando 8 ✅)
-- **Sports filter**: keywords expandidas cobrindo times brasileiros e termos esportivos
-- **Predictions filter**: seed events ocultos da UI (`source=prophet-historical` sem `story_id`)
+- **Vercel Hobby limit**: 12 serverless functions (usando 8 ✅) | 1 cron/day (diário 8h BRT)
 - **Foco do produto**: análise de viés midiático — impacto no Brasil, mundo e conflitos
 
 ---
 
 ## ⚠️ Decisões Pendentes (antes do lançamento)
-- [ ] **Monetização** — definir modelo antes de lançar (freemium, API B2B, relatórios, newsletter, ads?)
+- [ ] **Monetização** — definir modelo antes de lançar (freemium, API B2B, relatórios, newsletter)
   - Trade-off: ads conflita com missão (anunciantes = financiadores da mídia que o Prophet analisa)
   - Prioridade: API B2B ou relatórios como fonte de receita
-
 
 ---
 
@@ -146,13 +149,13 @@ Supabase (banco)
 
 | Métrica | Valor |
 |---------|-------|
-| Stories | 101 |
+| Stories | ~90 |
 | Artigos totais | ~420 |
 | Previsões | 35 |
 | Accuracy | 71% |
 | Brier Score | 0.40 |
 | Fontes | 16 (10 BR + 6 intl) |
-| Ciclos ativos | 7 (politico, cultural, economico, conflito, social, ambiental, tecnologico) |
+| Ciclos ativos | 7 |
 
 ---
 
