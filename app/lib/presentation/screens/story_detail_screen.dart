@@ -142,15 +142,40 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Widget _articleCard(dynamic a) {
-    final url = a['url'] as String?;
+    final articleId = a['id'] as String?;
+    final articleUrl = a['url'] as String?;
     return GestureDetector(
-      onTap: () async {
-        if (url != null && url.isNotEmpty) {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          }
+      onTap: () {
+        if (articleId == null) {
+          // Fallback: open URL if no article ID
+          _openUrl(articleUrl);
+          return;
         }
+        // Build a PreviewArticle from the raw map and navigate
+        final pa = PreviewArticle(
+          id: articleId,
+          title: a['title'] ?? 'Sem título',
+          url: articleUrl,
+          sourceId: a['source_id'] ?? '',
+          publishedAt: DateTime.tryParse(a['published_at'] ?? '') ?? DateTime.now(),
+          summary: a['summary'],
+        );
+        final storyWithArticle = Story(
+          id: widget.story.id,
+          title: widget.story.title,
+          summary: widget.story.summary,
+          mainSubject: widget.story.mainSubject,
+          cycle: widget.story.cycle,
+          sentimentTrend: widget.story.sentimentTrend,
+          hotness: widget.story.hotness,
+          articleCount: widget.story.articleCount,
+          updatedAt: widget.story.updatedAt,
+          region: widget.story.region,
+          previewArticles: widget.story.previewArticles,
+          prediction: widget.story.prediction,
+          selectedArticle: pa,
+        );
+        Navigator.pushNamed(context, '/article', arguments: storyWithArticle);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -164,7 +189,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 Expanded(
                   child: Text(a['title'] ?? 'Sem título', style: const TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500)),
                 ),
-                if (url != null && url.isNotEmpty)
+                if (articleUrl != null && articleUrl.isNotEmpty)
                   const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
               ],
             ),
@@ -468,5 +493,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${diff.inDays}d';
+  }
+
+  Future<void> _openUrl(String? url) async {
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
+    }
   }
 }
