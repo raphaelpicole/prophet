@@ -1,6 +1,6 @@
 # Prophet — Cronograma do Projeto
 
-> Última atualização: 2026-04-20
+> Última atualização: 2026-04-21
 
 ---
 
@@ -36,40 +36,59 @@
 
 ---
 
-## ✅ Fase 4 — Pipeline LLM (parcialmente completo)
+## ✅ Fase 4 — Pipeline LLM (19-20/abr)
 - [x] `/api/cron/collect` — RSS → Supabase com dedup real
-- [x] `stories` table populada + grouping (parcial)
-- [x] `regions` e `v_source_stats` criados no banco real
+- [x] `stories` table populada + grouping automático
 - [x] **Ollama Cloud** adaptado — `OLLAMA_API_KEY` configurada no Vercel, usa `gemma4:31b`
-- [ ] `analysis` table populada via LLM
-- [ ] `stories` grouping automático via `grouper.ts` ( wiring pendente)
+- [x] Sports filter — keyword-based, remove artigos de esportes
+- [x] Future event filter — ignora artigos sobre eventos futuros
+- [x] Article grouping com `shouldGroupWithStory` + similarity detection
+- [x] `story_articles` junction table populada no collect
+- [x] Historical events seed — 34 eventos históricos para analogia (via predictions table)
+- [x] Historical predictions — reasoning-based predictions com Ollama (JSON em description)
+- [x] Stories buscam predictions via `/api/story` endpoint
 
 ---
 
-## ✅ Fase 5 — Melhorias (18-20/abr)
+## ✅ Fase 5 — Melhorias (18-21/abr)
 - [x] **Filtro por região** no RadarScreen → chips com região + cor
 - [x] **PWA** — manifest.json + iOS meta tags (add to home screen)
 - [x] **Story timeline** — gráfico de evolução temporal com fl_chart
 - [x] **Mapa heatmap** — CircleLayer com densidade de histórias por região
-- [x] **Track record real** — predictions table + API real (8 previsões, 71% accuracy)
+- [x] **Track record real** — predictions table + API real (35 previsões, 71% accuracy)
 - [x] **Twitter/X share** — botão partilhar story (url_launcher)
 - [x] **Responsivo** — side nav em desktop (>800px), bottom nav em mobile
 - [x] **Monitorização** — logs table + logError em todos os endpoints + ConfigScreen
 - [x] **Admin tab** — 3 abas (Ações/Tabelas/Logs), 9 tabelas, 5 botões de acção
-- [x] **ProphetScreen detail** — bottom sheet ao clicar previsão com probabilidade, Brier score, model_used
+- [x] **ProphetScreen detail** — bottom sheet ao clicar previsão com probabilidade, Brier score
 - [x] **Story article preview** — cards expandem na web mostrando preview de artigos
 - [x] **Fontes internacionais** — 6 novas fontes (AP News, Al Jazeera, France24, DW, RTÉ, NBC)
 - [x] **Foreign Media section** no AnalysisScreen com fontes estrangeiras
+- [x] **Sports filter na API** — stories esportivas filtradas no `/api/stories` (keywords expandidas)
+- [x] **HTML entities decode** — `&#8220;`, `&#215;`, `&amp;` etc. convertidos para caracteres normais
+- [x] **Historical events hidden from UI** — seed events (`source=prophet-historical` sem story_id) não aparecem no Profeta, apenas contexto LLM
+- [x] **Historical predictions com reasoning** — prediction card mostra análogo histórico, reasoning, confiança, horizonte
+
+---
+
+## ✅ Fase 6 — Polimento & QA (20-21/abr)
+- [x] **Sports filter no collect** — filtro expandido (times brasileiros: Atlético-MG, Coritiba, Flamengo, etc.)
+- [x] **Sports stories deletadas** — 10 stories esportivas removidas do banco
+- [x] **Article 2+ para prediction** — só gera previsão se story tem ≥2 artigos (mais realista)
+- [x] **Sports filter na API** — filtro em `/api/stories` antes de retornar ao Flutter
+- [x] **Vercel API consolidation** — 8 serverless functions (≤12 limit do Hobby plan)
+- [x] **Bug fixes** — storiesRes query movida para depois do insert; JSON parse de predictions
+- [x] **CI/CD GitHub Actions** — `.github/workflows/ci.yml` com test + lint jobs
 
 ---
 
 ## 📋 Backlog
-- Docker local para collect (sem Vercel) — REMOVIDO
-- Push notifications (web push) — REMOVIDO
-- LLM analysis pipeline (necessita `LLM_API_KEY` no Vercel env vars)
-- Story grouping automático via grouper.ts
-- Agregação de artigos (ideal: 5-15 por story)
-- Mais fontes RSS
+- [ ] `analysis` table populada via LLM (mock atual)
+- [ ] LLM analysis pipeline completo (`grouper.ts` wiring)
+- [ ] Agregação de artigos (ideal: 5-15 por story)
+- [ ] Mais fontes RSS
+- [ ] Timeline/trends no RadarScreen
+- [ ] Push notifications (web push)
 
 ---
 
@@ -77,41 +96,54 @@
 
 ```
 Flutter Web (app/)
-  └─ ApiService → https://prophet-olive.vercel.app/api
+  └─ ApiService → https://prophet-irgoesl48-raphaelpicoles-projects.vercel.app/api
 
-Vercel (serverless functions)
-  └─ api/stories.js     → Supabase stories (com preview_articles, filtro region)
-  └─ api/story.js       → Supabase articles (via story_articles junction)
-  └─ api/sources.js     → Supabase sources (v_source_stats view)
-  └─ api/predictions.js → predictions table (track record real)
+Vercel (serverless functions — 8 total)
+  └─ api/collect.js     → pipeline completo (16 fontes: 10 BR + 6 internacional)
+  └─ api/stories.js     → Supabase stories (com preview_articles, filtro sports, HTML decode)
+  └─ api/story.js       → Supabase articles (via story_articles junction) + prediction
+  └─ api/misc.js        → consolidated: hello, regions, sources, historical
+  └─ api/data.js        → consolidated: predictions, logs (sem seed events na UI)
+  └─ api/admin-panel.js → consolidated: admin actions + tables
   └─ api/indicators.js  → agregações Supabase
-  └─ api/logs.js        → logs table (monitorização)
-  └─ api/admin/tables.js → todas as tabelas com paginação
-  └─ api/admin/actions.js → botões de acção (collect, analyze, group, cleanup, status)
-  └─ api/cron/collect.js → pipeline completo (16 fontes: 10 BR + 6 internacional)
+  └─ api/health.js      → health check
 
 Supabase (banco)
-  └─ raw_articles (280+ artigos)
+  └─ raw_articles (~420 artigos)
   └─ story_articles (junction table)
   └─ sources (16 fontes: 10 BR + 6 internacional)
-  └─ stories (30 stories com region + cycle)
+  └─ stories (~101 stories com region + cycle)
   └─ regions (8 regiões seed)
-  └─ v_source_stats (view com stats reais)
-  └─ predictions (8 previsões, 71% accuracy, Brier 0.21)
+  └─ predictions (35 previsões reais, 71% accuracy, Brier 0.40)
+  └─ predictions (34 seed events históricos — contexto LLM, oculto da UI)
   └─ logs (monitorização de erros)
-  └─ analysis (⚠ pendente — LLM pipeline)
-  └─ entities (⚠ pendente — LLM pipeline)
 ```
 
 ---
 
 ## 🔑 Notas Importantes
-- **Production URL**: https://prophet-olive.vercel.app
+- **Production URL**: https://prophet-irgoesl48-raphaelpicoles-projects.vercel.app
 - **Repo**: github.com/raphaelpicole/prophet
 - **OLLAMA_API_KEY**: configurada no Vercel (gemma4:31b)
 - **SUPABASE_KEY**: hardcoded nos API files
 - **RLS**: tabelas predictions e logs com policies para anon insert/read
-- **Monitorização**: logError em todos os endpoints + ConfigScreen
+- **Vercel Hobby limit**: 12 serverless functions (usando 8 ✅)
+- **Sports filter**: keywords expandidas cobrindo times brasileiros e termos esportivos
+- **Predictions filter**: seed events ocultos da UI (`source=prophet-historical` sem `story_id`)
+
+---
+
+## 📊 Estatísticas Atuais (21/abr)
+
+| Métrica | Valor |
+|---------|-------|
+| Stories | 101 |
+| Artigos totais | ~420 |
+| Previsões | 35 |
+| Accuracy | 71% |
+| Brier Score | 0.40 |
+| Fontes | 16 (10 BR + 6 intl) |
+| Ciclos ativos | 7 (politico, cultural, economico, conflito, social, ambiental, tecnologico) |
 
 ---
 
