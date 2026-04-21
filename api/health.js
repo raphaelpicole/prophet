@@ -8,7 +8,7 @@ const headers = {
 
 /**
  * GET /api/health — health check for all Prophet services
- * Returns status of Supabase and Ollama
+ * Returns status of Supabase, Ollama, and logs DB size
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,20 +20,48 @@ export default async function handler(req, res) {
   const results = {
     supabase: false,
     ollama: false,
+    db_stats: null,
     timestamp: new Date().toISOString(),
   };
 
   // Test Supabase
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id&limit=1`, {
-      headers,
-    });
-    results.supabase = r.ok;
+    const [storiesRes, articlesRes, logsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/stories?select=id`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/logs?select=id&limit=1`, { headers }),
+    ]);
+    results.supabase = storiesRes.ok && articlesRes.ok;
+    if (results.supabase) {
+      const [stories, articles, logs] = await Promise.all([
+        storiesRes.json(),
+        articlesRes.json(),
+        logsRes.json(),
+      ]);
+      results.db_stats = {
+        stories: Array.isArray(stories) ? stories.length : 0,
+        articles: Array.isArray(articles) ? articles.length : 0,
+        logs: Array.isArray(logs) ? logs.length : 0,
+      };
+      // Log daily health ping (only if we get real data)
+      if (Array.isArray(logs)) {
+        await fetch(`${SUPABASE_URL}/rest/v1/logs`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify({
+            level: 'info',
+            source: 'health',
+            message: `Health check OK — stories:${results.db_stats.stories} articles:${results.db_stats.articles}`,
+            context: JSON.stringify(results.db_stats),
+          }),
+        }).catch(() => {});
+      }
+    }
   } catch (_) {
     results.supabase = false;
   }
 
-  // Test Ollama (cloud health endpoint)
+  // Test Ollama
   try {
     const ollamaRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

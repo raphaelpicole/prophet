@@ -371,11 +371,11 @@ function shouldGroupWithStory(newSubject, newKeywords, cycle, region, existingSt
   const sNorm = normalizeTitle(existingStory.main_subject || '');
   const aNorm = normalizeTitle(newSubject);
 
-  // Strategy 1: Same cycle + region AND 50%+ keyword overlap (min 2 shared)
+  // Strategy 1: Same cycle + region AND 1+ keyword overlap (relaxed threshold)
   if (existingStory.cycle === cycle && existingStory.region === region) {
     const existingKeywords = existingStory._cachedKeywords || extractKeywords(existingStory.main_subject || '');
     const overlap = keywordOverlap(newKeywords, existingKeywords);
-    if (overlap >= 2) {
+    if (overlap >= 1) {
       return { match: true, reason: `keywords(${overlap} shared)` };
     }
   }
@@ -391,16 +391,16 @@ function shouldGroupWithStory(newSubject, newKeywords, cycle, region, existingSt
     }
   }
 
-  // Strategy 3: 3+ identical words in first 5 words
+  // Strategy 3: 2+ identical words in first 5 words (relaxed from 3)
   const sFirst5 = sNorm.split(' ').slice(0, 5);
   const aFirst5 = aNorm.split(' ').slice(0, 5);
   const first5Match = sFirst5.filter(w => aFirst5.includes(w) && w.length > 2);
-  if (first5Match.length >= 3) {
+  if (first5Match.length >= 2) {
     return { match: true, reason: `first5 match(${first5Match.length})` };
   }
 
   // Strategy 4: Substring match (original logic, as fallback)
-  if (sNorm.includes(aNorm.slice(0, 15)) || aNorm.includes(sNorm.slice(0, 15))) {
+  if (sNorm.includes(aNorm.slice(0, 12)) || aNorm.includes(sNorm.slice(0, 12))) {
     return { match: true, reason: 'substring' };
   }
 
