@@ -8,6 +8,8 @@ const headers = {
 
 const HISTORICAL_PROMPT = `Voce eh um analist preditivo do sistema Prophet. Analise a noticia e, usando eventos historicos analogues, gere uma previsao racional.
 
+Contexto: Esta story tem multiplas fontes de informacao, o que da maior confiabilidade a previsao.
+
 Noticia: {story_title}
 Resumo: {story_summary}
 Categoria: {cycle}
@@ -51,6 +53,16 @@ const SPORTS_KEYWORDS = [
 function isSportsArticle(title, content) {
   const text = `${title} ${content || ''}`.toLowerCase();
   return SPORTS_KEYWORDS.some(kw => text.includes(kw));
+}
+
+function isFutureArticle(title, content) {
+  // Check for future event keywords that indicate prediction/event, not past news
+  const text = `${title} ${content || ''}`.toLowerCase();
+  const futureKws = ['amanhã', 'esta semana', 'próxima semana', 'próximo mês', 'vai acontecer', 
+    'está marcado', 'será realizado', 'acontece em', 'começa dia', 'disputa dia',
+    'previsão para', 'tendência para', 'irá ocorrer', 'em breve', 'em breve acontece',
+    'calendário', 'agenda', 'programação'];
+  return futureKws.some(kw => text.includes(kw));
 }
 
 const RSS_SOURCES = [
@@ -505,6 +517,10 @@ export default async function handler(req, res) {
         skippedSports++;
         continue;
       }
+      // Skip future event articles (show only past/current news)
+      if (isFutureArticle(item.title, item.content)) {
+        continue;
+      }
       const h = hash(item.title + item.url);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles`, {
         method: 'POST',
@@ -583,7 +599,7 @@ export default async function handler(req, res) {
 
     // 6. Stats (fetch stories AFTER upsertStory to include newly created ones)
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?select=id`, { headers }).then(r => r.json()).catch(() => []);
-    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,cycle,region,main_subject,summary&order=updated_at.desc&limit=20`, { headers }).then(r => r.json()).catch(() => []);
+    const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,cycle,region,main_subject,summary,article_count&order=updated_at.desc&limit=20`, { headers }).then(r => r.json()).catch(() => []);
     const analyzedRes = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?status=eq.analyzed&select=id`, { headers }).then(r => r.json()).catch(() => []);
     
     log.push(`📊 Artigos: ${Array.isArray(countRes) ? countRes.length : '?'} total | ${Array.isArray(analyzedRes) ? analyzedRes.length : '?'} analisados`);
@@ -638,6 +654,13 @@ async function generateHistoricalPredictions(stories, startTime, log) {
     ).then(r => r.json()).catch(() => []);
     if (Array.isArray(existing) && existing.length > 0) {
       log.push(`   ⏭️ Story ja tem previsao: ${(story.main_subject || '').slice(0, 20)}`);
+      continue;
+    }
+
+    // Only generate predictions for stories with 2+ articles (more realistic)
+    const articleCount = story.article_count || 0;
+    if (articleCount < 2) {
+      log.push(`   ⏭️ Story com apenas ${articleCount} artigo(s): ${(story.main_subject || '').slice(0, 20)}`);
       continue;
     }
 
