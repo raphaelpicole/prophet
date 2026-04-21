@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Prediction {
   final String id;
   final String title;
@@ -24,15 +26,21 @@ class Prediction {
   });
 
   factory Prediction.fromJson(Map<String, dynamic> json) {
+    // description might be JSON string: '{"reasoning":"...","historical_analogue":"..."}'
+    String? desc = json['description'];
+    Map<String, dynamic>? descObj;
+    if (desc != null && desc.startsWith('{')) {
+      try { descObj = jsonDecode(desc); } catch (_) { descObj = null; }
+    }
     return Prediction(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
-      description: json['description'],
+      description: descObj?['reasoning'] ?? desc ?? json['description'],
       probability: (json['probability'] ?? 0.5).toDouble(),
-      historicalAnalogue: json['historical_analogue'],
-      reasoning: json['reasoning'],
-      confidence: json['confidence'],
-      horizonDays: json['horizon_days'],
+      historicalAnalogue: descObj?['historical_analogue'] ?? json['historical_analogue'],
+      reasoning: descObj?['reasoning'] ?? json['reasoning'],
+      confidence: descObj?['confidence'] ?? json['confidence'],
+      horizonDays: descObj?['horizon_days'] ?? json['horizon_days'],
       outcome: json['outcome'],
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
     );

@@ -40,13 +40,17 @@ export default async function handler(req, res) {
       const aid = await fetch(`${SUPABASE_URL}/rest/v1/raw_articles?id=in.(${articleIds.join(',')})&select=*&order=published_at.desc&limit=20`, { headers });
       const rawArts = await aid.json();
       articles = Array.isArray(rawArts) ? rawArts : [];
-    } else {
-      // Fallback: raw_articles that might belong to this story via content_hash or collected_at
-      // For now return empty (will be populated on next collect runs)
-      articles = [];
     }
 
-    return res.status(200).json({ ...story, articles });
+    // Prediction for this story
+    let prediction = null;
+    const pr = await fetch(`${SUPABASE_URL}/rest/v1/predictions?story_id=eq.${id}&source=eq.prophet-historical&order=created_at.desc&limit=1`, { headers });
+    const predData = await pr.json();
+    if (Array.isArray(predData) && predData.length > 0) {
+      prediction = predData[0];
+    }
+
+    return res.status(200).json({ ...story, articles, prediction });
   } catch (e) {
     await logError('error', 'api-story', e.message, { endpoint: 'story' });
     return res.status(500).json({ error: e.message });
