@@ -701,23 +701,31 @@ async function generateHistoricalPredictions(stories, startTime, log) {
       const prob = typeof pred.probability === 'number' ? pred.probability : 0.5;
       const brier = Math.round((1 - prob) ** 2 * 100) / 100;
 
-      await fetch(`${SUPABASE_URL}/rest/v1/predictions`, {
-        method: 'POST',
-        headers: { ...headers, Prefer: 'return=representation' },
-        body: JSON.stringify({
-          story_id: story.id,
-          title: `Historico: ${story.main_subject || story.title}`.slice(0, 300),
-          description: pred.reasoning || null,
-          cycle: story.cycle,
-          probability: prob,
-          historical_analogue: pred.historical_analogue || null,
+      // Store prediction with reasoning in description (JSON format since extra columns don't exist in DB)
+      const predictionRecord = {
+        story_id: story.id,
+        title: `Historico: ${story.main_subject || story.title}`.slice(0, 300),
+        description: JSON.stringify({
           reasoning: pred.reasoning || null,
+          historical_analogue: pred.historical_analogue || null,
           confidence: pred.confidence || 'medium',
           horizon_days: pred.horizon_days || 60,
-          source: 'prophet-historical',
-          brier_score: brier,
         }),
+        cycle: story.cycle,
+        probability: prob,
+        source: 'prophet-historical',
+        brier_score: brier,
+      };
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/predictions`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify(predictionRecord),
       });
+      if (!insertRes.ok) {
+        const err = await insertRes.text();
+        log.push(`   ❌ Insert failed: ${err.slice(0, 80)}`);
+        continue;
+      }
       count++;
       log.push(`   ✅ Previsao: ${pred.historical_analogue} (${Math.round(prob * 100)}%)`);
     } catch (e) {
