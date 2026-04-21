@@ -38,8 +38,12 @@ export default async function handler(req, res) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/predictions?${params}`, { headers });
       let predictions = await r.json();
       
-      // Filter out historical seed events (source='prophet-historical') - these are only for LLM analysis
-      predictions = predictions.filter(p => p.source !== 'prophet-historical');
+      // Filter out historical seed events (source='prophet-historical' with no story_id)
+      // These are only used as LLM context/analogues, not actual predictions to show
+      // Real predictions from collect also have source='prophet-historical' but have story_id set
+      predictions = predictions.filter(p => 
+        p.source !== 'prophet-historical' || p.story_id !== null
+      );
       
       // Enrich each prediction with historical analogue info from description
       // The model stores historical_analogue and reasoning in description as a combined text
