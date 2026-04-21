@@ -124,4 +124,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 }
+
 module.exports = { SPORTS_KEYWORDS, isSportsStory, cleanHtmlEntities };
