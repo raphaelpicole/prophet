@@ -719,7 +719,7 @@ async function generateHistoricalPredictions(stories, startTime, log) {
         }),
       });
       count++;
-      log.push(`   ✅ Previsao: ${pred.historical_analogue} (${(prob * 100).toInt()}%)`);
+      log.push(`   ✅ Previsao: ${pred.historical_analogue} (${Math.round(prob * 100)}%)`);
     } catch (e) {
       log.push(`   ❌ Erro: ${e.name}: ${e.message}`);
     }
