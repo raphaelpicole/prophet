@@ -1,3 +1,11 @@
+const SUPABASE_URL = 'https://jtyxsxyesliekbuhgkje.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eXhzeHllc2xpZWtidWhna2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzU4MjEsImV4cCI6MjA5MTc1MTgyMX0.pdXEWW2YUa4NVmaeVE5FaNv5o1UycQl3oqi-ERK-fWQ';
+const headers = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+};
+
 const SPORTS_KEYWORDS = [
   'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
   'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
@@ -53,7 +61,6 @@ export default async function handler(req, res) {
   let params = `select=*&archived=eq.false&order=updated_at.desc&limit=${limit}&offset=${offset}`;
   if (cycle) params += `&cycle=eq.${cycle}`;
   if (region) {
-    // Treat SAM (South America) as inclusive of BR (Brazil)
     if (region === 'SAM') {
       params += `&(region=eq.SAM,region=eq.BR)`;
     } else {
@@ -67,43 +74,43 @@ export default async function handler(req, res) {
     const stories = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: stories.message });
 
-    // Batch fetch preview articles for all returned stories (max 3 per story)
+    // Batch fetch preview articles
     const storyIds = Array.isArray(stories) ? stories.map(s => s.id) : [];
     if (storyIds.length > 0) {
-      // Get article_ids from junction table
-      const saRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/story_articles?story_id=in.(${storyIds.join(',')})&select=story_id,article_id&order=article_id.desc`,
-        { headers }
-      );
-      const saData = await saRes.json();
-      if (Array.isArray(saData) && saData.length > 0) {
-        // Group by story, take first 3 article_ids per story
-        const byStory = {};
-        for (const row of saData) {
-          if (!byStory[row.story_id]) byStory[row.story_id] = [];
-          if (byStory[row.story_id].length < 3) byStory[row.story_id].push(row.article_id);
-        }
-        const allArticleIds = [...new Set(saData.map(r => r.article_id))];
-        // Fetch article details
-        const idsFilter = allArticleIds.map(id => `id=eq.${id}`).join('&');
-        const artsRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/raw_articles?${idsFilter}&select=id,title,url,source_id,published_at,summary&order=published_at.desc`,
+      try {
+        const saRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/story_articles?story_id=in.(${storyIds.join(',')})&select=story_id,article_id&order=article_id.desc`,
           { headers }
         );
-        const articles = await artsRes.json();
-        const artsById = Array.isArray(articles)
-          ? Object.fromEntries(articles.map(a => [a.id, a]))
-          : {};
-        // Attach preview_articles to each story
-        for (const story of stories) {
-          const ids = byStory[story.id] || [];
-          story.preview_articles = ids.map(id => artsById[id]).filter(Boolean);
+        const saData = await saRes.json();
+        if (Array.isArray(saData) && saData.length > 0) {
+          const byStory = {};
+          for (const row of saData) {
+            if (!byStory[row.story_id]) byStory[row.story_id] = [];
+            if (byStory[row.story_id].length < 3) byStory[row.story_id].push(row.article_id);
+          }
+          const allArticleIds = [...new Set(saData.map(r => r.article_id))];
+          const idsFilter = allArticleIds.map(id => `id=eq.${id}`).join('&');
+          const artsRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/raw_articles?${idsFilter}&select=id,title,url,source_id,published_at,summary&order=published_at.desc`,
+            { headers }
+          );
+          const articles = await artsRes.json();
+          const artsById = Array.isArray(articles)
+            ? Object.fromEntries(articles.map(a => [a.id, a]))
+            : {};
+          for (const story of stories) {
+            const ids = byStory[story.id] || [];
+            story.preview_articles = ids.map(id => artsById[id]).filter(Boolean);
+          }
         }
+      } catch (e) {
+        // Skip articles on error
       }
     }
 
-    // Filter out sports stories
-    const filteredStories = stories.filter(s => !isSportsStory(s));
+    // Filter sports stories
+    const filteredStories = Array.isArray(stories) ? stories.filter(s => !isSportsStory(s)) : [];
 
     return res.status(200).json({
       stories: filteredStories.map(s => ({
@@ -124,5 +131,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 }
-
-module.exports = { SPORTS_KEYWORDS, isSportsStory, cleanHtmlEntities };
