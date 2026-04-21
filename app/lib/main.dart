@@ -4,7 +4,6 @@ import 'core/theme/app_theme.dart';
 import 'presentation/screens/radar_screen.dart';
 import 'presentation/screens/analysis_screen.dart';
 import 'presentation/screens/prophet_screen.dart';
-import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/config_screen.dart';
 import 'presentation/screens/admin_screen.dart';
 import 'presentation/screens/story_detail_screen.dart';
@@ -39,7 +38,6 @@ class ProphetApp extends StatelessWidget {
           );
         }
         if (settings.name == '/admin' && kReleaseMode) {
-          // Secret admin route accessible even in release mode
           return MaterialPageRoute(
             builder: (_) => const AdminScreen(),
           );
@@ -63,26 +61,21 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final _allScreens = const [
-    RadarScreen(),
-    AnalysisScreen(),
-    ProphetScreen(),
-    MapScreen(),
-    ConfigScreen(),
-    AdminScreen(),
-  ];
+  // Release: Radar, Analysis, Prophet (Map disabled)
+  final _releaseScreens = const [RadarScreen(), AnalysisScreen(), ProphetScreen()];
+  final _releaseLabels = ['Radar', 'Análise', 'Profeta'];
 
-  final _allLabels = ['Radar', 'Análise', 'Profeta', 'Mapa', 'Config', 'Admin'];
-  final _releaseLabels = ['Radar', 'Análise', 'Profeta', 'Mapa'];
+  // Dev: adds Config and Admin
+  final _devScreens = const [RadarScreen(), AnalysisScreen(), ProphetScreen(), ConfigScreen(), AdminScreen()];
+  final _devLabels = ['Radar', 'Análise', 'Profeta', 'Config', 'Admin'];
 
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 800;
     final isRelease = kReleaseMode;
 
-    // In release mode, hide Admin and Config from navigation
-    final screens = isRelease ? _allScreens.sublist(0, 4) : _allScreens;
-    final labels = isRelease ? _releaseLabels : _allLabels;
+    final screens = isRelease ? _releaseScreens : _devScreens;
+    final labels = isRelease ? _releaseLabels : _devLabels;
 
     return Scaffold(
       body: Row(
@@ -101,8 +94,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildSideNav({required List<Widget> screens, required List<String> labels}) {
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
-    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.public, Icons.settings, Icons.admin_panel_settings];
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
+    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.settings, Icons.admin_panel_settings];
 
     return Container(
       width: 80,
@@ -152,7 +145,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildBottomNav({required List<String> labels}) {
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.public_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
 
     return Container(
       decoration: const BoxDecoration(

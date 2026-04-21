@@ -6,7 +6,8 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-const SPORTS_KEYWORDS = [
+const CONTENT_FILTER_KEYWORDS = [
+  // Sports
   'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
   'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
   'nba', 'basquete', 'basketball', 'vôlei', 'volleyball', 'tênis', 'tennis', 'golfe', 'golf',
@@ -22,11 +23,20 @@ const SPORTS_KEYWORDS = [
   'brasileirão', 'serie b', 'copa do brasil',
   'horário e onde assistir', 'ao vivo', 'transmissão', 'canal', 'tv',
   'escalação', 'escalacao', 'titular', 'reserva',
+  // Celebrities / Reality shows / Entertainment fluff
+  'bbb', 'big brother', 'reality show', 'a fazenda', 'casa dos famosos',
+  'fofoca', 'famosos', 'celebridade', 'celebridades', 'famosa', 'famoso',
+  'anitta', 'whindersson', 'lorena sonza', 'luísa sonza',
+  'bbb 26', 'bbb 27', 'final do bbb', 'vencedor do bbb',
+  'cinema', 'filme', 'série', 'netflix', 'globoplay', 'prime video', 'disney+',
+  'ator', 'atriz', 'hollywood', 'première', 'estreia de filme',
+  'show', 'turnê', 'festival', ' concerto',
+  'rodrigo faro', 'faustão', 'simone', 'belo',
 ];
 
-function isSportsStory(story) {
+function isFilteredStory(story) {
   const text = `${story.main_subject || ''} ${story.title || ''} ${story.summary || ''}`.toLowerCase();
-  return SPORTS_KEYWORDS.some(kw => text.includes(kw));
+  return CONTENT_FILTER_KEYWORDS.some(kw => text.includes(kw));
 }
 
 function cleanHtmlEntities(text) {
@@ -110,7 +120,7 @@ export default async function handler(req, res) {
     }
 
     // Filter sports stories
-    const filteredStories = Array.isArray(stories) ? stories.filter(s => !isSportsStory(s)) : [];
+    const filteredStories = Array.isArray(stories) ? stories.filter(s => !isFilteredStory(s)) : [];
 
     return res.status(200).json({
       stories: filteredStories.map(s => ({

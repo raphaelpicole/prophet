@@ -37,8 +37,8 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 const OLLAMA_MODEL = process.env.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
 
 // Sports keywords for exclusion (don't show sports news in Prophet)
-const SPORTS_KEYWORDS = [
-  // General terms
+const CONTENT_FILTER_KEYWORDS = [
+  // Sports
   'futebol', 'football', 'soccer', 'brasileirão', 'campeonato', 'libertadores', 'champions league',
   'copa do mundo', 'world cup', 'olimpíadas', 'olympics', 'jogos olímpicos', 'atletismo',
   'nba', 'basquete', 'basketball', 'vôlei', 'volleyball', 'tênis', 'tennis', 'golfe', 'golf',
@@ -47,15 +47,22 @@ const SPORTS_KEYWORDS = [
   'paulistão', 'mineirão', 'copa do brasil', 'campeonato brasileiro',
   'real madrid', 'barcelona', 'messi', 'cr7', 'ronaldo', 'neymar',
   'transferência', 'mercado da bola', 'contrato', 'renovação',
-  // Brazilian teams
   'corinthians', 'flamengo', 'palmeiras', 'são paulo', 'grêmio', 'internacional',
   'atlético', 'atlético-mg', 'botafogo', 'vasco', 'santos', 'cruzeiro', 'fluminense',
-  'coritiba', 'santos', 'cec', 'athletico', 'paranaense', 'goias', 'ceará', 'sport',
+  'coritiba', 'athletico', 'paranaense', 'goias', 'ceará', 'sport',
   'série a', 'serie a', 'liga dos campeões', 'copa libertadores',
   'brasileirão', 'serie b', 'copa do brasil',
-  // Match keywords
   'horário e onde assistir', 'ao vivo', 'transmissão', 'canal', 'tv',
   'escalação', 'escalacao', 'titular', 'reserva',
+  // Celebrities / Reality shows / Entertainment fluff
+  'bbb', 'big brother', 'reality show', 'a fazenda', 'casa dos famosos',
+  'fofoca', 'famosos', 'celebridade', 'celebridades', 'famosa', 'famoso',
+  'anitta', 'whindersson', 'lorena sonza', 'luísa sonza', 'exахeração',
+  'bbb 26', 'bbb 27', 'final do bbb', 'vencedor do bbb',
+  'cinema', 'filme', 'série', 'netflix', 'globoplay', 'prime video', 'disney+',
+  'ator', 'atriz', 'hollywood', 'première', 'estreia de filme',
+  'show', 'turnê', 'turnê', 'festival', ' concerto',
+  'rodrigo faro', 'faustão', 'sabrina', 'simone', 'belo',
 ];
 
 function cleanHtmlEntities(text) {
@@ -79,9 +86,9 @@ function cleanHtmlEntities(text) {
     .replace(/&#([0-9]{1,5});/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
 }
 
-function isSportsArticle(title, content) {
+function isFilteredArticle(title, content) {
   const text = `${title} ${content || ''}`.toLowerCase();
-  return SPORTS_KEYWORDS.some(kw => text.includes(kw));
+  return CONTENT_FILTER_KEYWORDS.some(kw => text.includes(kw));
 }
 
 function isFutureArticle(title, content) {
@@ -539,11 +546,11 @@ export default async function handler(req, res) {
     // 4. Insert articles
     log.push('🔍 Inserindo...');
     let insertedCount = 0;
-    let skippedSports = 0;
+    let skippedFiltered = 0;
     for (const item of allItems) {
-      // Skip sports articles
-      if (isSportsArticle(item.title, item.content)) {
-        skippedSports++;
+      // Skip sports/celebrity/ fluff articles
+      if (isFilteredArticle(item.title, item.content)) {
+        skippedFiltered++;
         continue;
       }
       // Skip future event articles (show only past/current news)
@@ -566,7 +573,7 @@ export default async function handler(req, res) {
       });
       if (r.ok) insertedCount++;
     }
-    log.push(`   ✅ Inseridos: ${insertedCount} | Sports: ${skippedSports}`);
+    log.push(`   ✅ Inseridos: ${insertedCount} | Filtrados: ${skippedFiltered}`);
 
     // 5. Analyze with Ollama
     let storiesCreated = 0;
@@ -686,9 +693,9 @@ async function generateHistoricalPredictions(stories, startTime, log) {
       continue;
     }
 
-    // Skip sports stories (shouldn't have been created, but clean up existing)
-    if (isSportsArticle(story.main_subject || '', story.summary || '')) {
-      log.push(`   🚫 Removendo story esportiva: ${(story.main_subject || '').slice(0, 20)}`);
+    // Skip sports/celebrity stories (shouldn't have been created, but clean up existing)
+    if (isFilteredArticle(story.main_subject || '', story.summary || '')) {
+      log.push(`   🚫 Removendo story filtrada: ${(story.main_subject || '').slice(0, 20)}`);
       await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${story.id}`, { method: 'DELETE', headers });
       continue;
     }
