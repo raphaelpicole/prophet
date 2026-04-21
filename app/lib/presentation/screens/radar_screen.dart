@@ -318,21 +318,25 @@ class _RadarScreenState extends State<RadarScreen> {
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
               // ────────────────────────────────────────────────────
-              // 1. TIMELINE CHART
+              // 1. TIMELINE CHART (collapsible)
               // ────────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        initiallyExpanded: true,
+                        iconColor: AppTheme.textoSec,
+                        collapsedIconColor: AppTheme.textoSec,
+                        title: Row(
                           children: [
                             const Icon(Icons.show_chart, color: AppTheme.primary, size: 16),
                             const SizedBox(width: 6),
@@ -344,29 +348,36 @@ class _RadarScreenState extends State<RadarScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const Spacer(),
-                            Text(
-                              '${_stories.length} stories',
-                              style: const TextStyle(color: AppTheme.textoSec, fontSize: 11),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${_stories.length} stories',
+                                style: const TextStyle(color: AppTheme.primary, fontSize: 11),
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          height: 140,
-                          child: timelineData.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'Sem dados de timeline ainda',
-                                    style: TextStyle(color: AppTheme.textoSec, fontSize: 12),
-                                  ),
-                                )
-                              : _buildTimelineChart(timelineData, timelineByCycle),
-                        ),
-                        const SizedBox(height: 8),
-                        // Cycle legend
-                        _buildCycleLegend(),
-                      ],
+                        children: [
+                          SizedBox(
+                            height: 140,
+                            child: timelineData.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                      'Sem dados de timeline ainda',
+                                      style: TextStyle(color: AppTheme.textoSec, fontSize: 12),
+                                    ),
+                                  )
+                                : _buildTimelineChart(timelineData, timelineByCycle),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildCycleLegend(),
+                        ],
+                      ),
                     ),
                   ),
                 ),

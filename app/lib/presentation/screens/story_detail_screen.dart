@@ -65,9 +65,25 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               const SizedBox(width: 8),
               _trendTag(widget.story.sentimentTrend),
               const Spacer(),
-              Icon(Icons.article_outlined, color: AppTheme.textoSec, size: 16),
-              const SizedBox(width: 4),
-              Text('${widget.story.articleCount} artigos', style: const TextStyle(color: AppTheme.textoSec, fontSize: 13)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.article_outlined, color: AppTheme.primary, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${widget.story.articleCount} artigos',
+                      style: const TextStyle(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
             ]),
             const SizedBox(height: 20),
             if (widget.story.summary != null) ...[
@@ -86,8 +102,22 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            // Sentiment timeline chart
-            _sentimentTimeline(),
+            // Article preview cards from story data
+            if (widget.story.previewArticles.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Icon(Icons.preview, color: AppTheme.textoSec, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '📖 ${widget.story.previewArticles.length} artigos recentes',
+                    style: const TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ...widget.story.previewArticles.map((a) => _previewArticleCard(a)),
+            ],
 
             const SizedBox(height: 24),
             if (widget.story.prediction != null) ...[
@@ -150,6 +180,76 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               const SizedBox(height: 6),
               Text(a['summary'], style: const TextStyle(color: AppTheme.textoSec, fontSize: 11), maxLines: 3, overflow: TextOverflow.ellipsis),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _previewArticleCard(PreviewArticle a) {
+    final url = a.url;
+    return GestureDetector(
+      onTap: () async {
+        if (url != null && url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.surface),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    a.sourceId,
+                    style: const TextStyle(color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const Spacer(),
+                if (url != null && url.isNotEmpty)
+                  const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              a.title,
+              style: const TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (a.summary != null && a.summary!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                a.summary!,
+                style: const TextStyle(color: AppTheme.textoSec, fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.schedule, color: AppTheme.textoSec, size: 10),
+                const SizedBox(width: 3),
+                Text(_timeAgo(a.publishedAt), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+              ],
+            ),
           ],
         ),
       ),
