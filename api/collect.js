@@ -616,10 +616,10 @@ export default async function handler(req, res) {
   }
 
 async function fetchHistoricalEvents(cycle, region, limit = 5) {
-  const cycleParam = cycle ? `&cycle_type=eq.${cycle}` : '';
-  const regionParam = region ? `&region=eq.${region}` : '';
+  // Busca eventos históricos da tabela predictions (onde seedamos com source='prophet-historical')
+  const cycleParam = cycle ? `&cycle=eq.${cycle}` : '';
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/historical_events?significance=gte.3${cycleParam}${regionParam}&select=*&order=significance.desc&limit=${limit}`,
+    `${SUPABASE_URL}/rest/v1/predictions?source=eq.prophet-historical${cycleParam}&order=probability.desc&limit=${limit}`,
     { headers }
   );
   const events = await r.json();
@@ -644,9 +644,16 @@ async function generateHistoricalPredictions(stories, startTime, log) {
     const events = await fetchHistoricalEvents(story.cycle, story.region, 4);
     if (events.length === 0) { log.push(`   ⚠️ Sem eventos historicos para ${story.cycle}/${story.region}`); continue; }
 
-    const eventsText = events.map(e =>
-      `- ${e.name} (${e.event_date}): ${e.description || ''} Outcome: ${e.outcome || 'N/A'}`
-    ).join('\n');
+    const eventsText = events.map(e => {
+      // description é JSON: {evento, contexto, desfecho, significado, region}
+      let descObj = {};
+      try { descObj = JSON.parse(e.description || '{}'); } catch {}
+      const name = e.title || descObj.evento || 'Evento desconhecido';
+      const contexto = descObj.contexto || e.description || '';
+      const desfecho = descObj.desfecho || '';
+      const significance = descObj.significado || 3;
+      return `- ${name} (Significância: ${significance}/5): ${contexto} | Desfecho: ${desfecho}`;
+    }).join('\n');
 
     const prompt = HISTORICAL_PROMPT
       .replace('{story_title}', story.main_subject || story.title || '')
