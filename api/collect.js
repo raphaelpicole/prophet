@@ -677,7 +677,7 @@ async function generateHistoricalPredictions(stories, startTime, log) {
           model: OLLAMA_MODEL,
           messages: [{ role: 'user', content: prompt }],
           format: 'json',
-          options: { temperature: 0.3, num_predict: 150 },
+          options: { temperature: 0.3, num_predict: 300 },
           stream: false,
         }),
         signal: controller.signal,
@@ -687,9 +687,16 @@ async function generateHistoricalPredictions(stories, startTime, log) {
       if (!response.ok) { log.push(`   ❌ Ollama error: ${response.status}`); continue; }
 
       const data = await response.json();
-      const raw = (data.message?.content || '{}').replace(/```json\n?|\n?```/g, '').trim();
+      let raw = (data.message?.content || '{}').replace(/```json\n?|\n?```/g, '').trim();
       let pred;
-      try { pred = JSON.parse(raw); } catch { log.push(`   ❌ JSON parse: ${raw.slice(0, 60)}`); continue; }
+      try { pred = JSON.parse(raw); } catch {
+        // Try to fix truncated JSON by finding complete object
+        const lastBrace = raw.lastIndexOf('}');
+        if (lastBrace > 50) {
+          try { pred = JSON.parse(raw.substring(0, lastBrace + 1)); } catch {}
+        }
+        if (!pred) { log.push(`   ❌ JSON parse: ${raw.slice(0, 80)}`); continue; }
+      }
 
       const prob = typeof pred.probability === 'number' ? pred.probability : 0.5;
       const brier = Math.round((1 - prob) ** 2 * 100) / 100;
