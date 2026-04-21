@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/models/source.dart';
 import '../../data/models/story.dart';
 import '../../data/models/foreign_source.dart';
 import '../../data/services/api_service.dart';
@@ -13,76 +13,117 @@ class AnalysisScreen extends StatefulWidget {
   State<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
-class _AnalysisScreenState extends State<AnalysisScreen> {
+class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProviderStateMixin {
   final ApiService _api = ApiService();
-  List<Source>? _sources;
   bool _loading = true;
   String? _error;
-  Set<String> _expandedSources = {};
-  Map<String, List<Story>> _sourceArticles = {};
-  Map<String, bool> _loadingArticles = {};
+  String _selectedSource = 'all';
+  late TabController _tabController;
+
+  // source stats from API
+  Map<String, List<Story>> _sourceStories = {};
+  List<Story> _allStories = [];
+  Map<String, int> _sourceArticleCount = {};
+  Map<String, double> _sourceSentiment = {};
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final sources = await _api.getSources().catchError((_) => <Source>[]);
-      setState(() {
-        _sources = sources.isEmpty ? _mockSources() : sources;
-        _loading = false;
-      });
+      final stories = await _api.getStories(region: null, limit: 50);
+      if (mounted) {
+        setState(() {
+          _allStories = stories;
+          _buildSourceStats(stories);
+          _loading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _sources = _mockSources();
-        _loading = false;
-      });
+      setState(() { _loading = false; _error = e.toString(); });
     }
   }
 
-  Future<void> _toggleSourceExpand(String sourceId) async {
-    if (_expandedSources.contains(sourceId)) {
-      setState(() => _expandedSources.remove(sourceId));
-      return;
-    }
-    setState(() => _expandedSources.add(sourceId));
-    if (!_sourceArticles.containsKey(sourceId)) {
-      setState(() => _loadingArticles[sourceId] = true);
-      try {
-        final stories = await _api.getStories(region: null, limit: 5);
-        if (mounted) {
-          setState(() {
-            _sourceArticles[sourceId] = stories;
-            _loadingArticles.remove(sourceId);
-          });
-        }
-      } catch (_) {
-        if (mounted) setState(() => _loadingArticles.remove(sourceId));
+  void _buildSourceStats(List<Story> stories) {
+    final counts = <String, int>{};
+    final sentiments = <String, double>{};
+
+    for (final story in stories) {
+      for (final article in story.previewArticles) {
+        final sid = article.sourceId;
+        counts[sid] = (counts[sid] ?? 0) + 1;
       }
     }
+
+    // Sentiment per source based on story sentiment_trend
+    final sourceSentimentTotals = <String, double>{};
+    final sourceSentimentCounts = <String, int>{};
+    for (final story in stories) {
+      for (final article in story.previewArticles) {
+        final sid = article.sourceId;
+        double sentVal = story.sentimentTrend == 'rising' ? 1.0
+            : story.sentimentTrend == 'falling' ? -1.0 : 0.0;
+        sourceSentimentTotals[sid] = (sourceSentimentTotals[sid] ?? 0) + sentVal;
+        sourceSentimentCounts[sid] = (sourceSentimentCounts[sid] ?? 0) + 1;
+      }
+    }
+    for (final sid in sourceSentimentTotals.keys) {
+      final cnt = sourceSentimentCounts[sid] ?? 1;
+      sentiments[sid] = (sourceSentimentTotals[sid] ?? 0) / cnt;
+    }
+
+    setState(() {
+      _sourceArticleCount = counts;
+      _sourceSentiment = sentiments;
+    });
   }
 
-  List<Source> _mockSources() {
-    return [
-      Source(id: '1', slug: 'g1', name: 'G1', ideology: 'centro-esquerda',
-          totalArticles: 142, articles24h: 23, analyzedCount: 120, failedCount: 2),
-      Source(id: '2', slug: 'folha', name: 'Folha', ideology: 'centro-esquerda',
-          totalArticles: 98, articles24h: 18, analyzedCount: 85, failedCount: 5),
-      Source(id: '3', slug: 'uol', name: 'UOL', ideology: 'centro-esquerda',
-          totalArticles: 115, articles24h: 20, analyzedCount: 100, failedCount: 3),
-      Source(id: '4', slug: 'estadao', name: 'Estadão', ideology: 'centro-direita',
-          totalArticles: 87, articles24h: 15, analyzedCount: 75, failedCount: 4),
-      Source(id: '5', slug: 'oglobo', name: 'O Globo', ideology: 'centro-direita',
-          totalArticles: 76, articles24h: 12, analyzedCount: 65, failedCount: 6),
-      Source(id: '6', slug: 'cnn', name: 'CNN Brasil', ideology: 'centro',
-          totalArticles: 64, articles24h: 11, analyzedCount: 55, failedCount: 2),
-      Source(id: '7', slug: 'bbc', name: 'BBC Brasil', ideology: 'centro',
-          totalArticles: 45, articles24h: 8, analyzedCount: 40, failedCount: 1),
-    ];
+  // All sources seen in articles
+  List<_SourceStat> get _sourceStats {
+    final map = <String, _SourceStat>{};
+    for (final story in _allStories) {
+      for (final article in story.previewArticles) {
+        final sid = article.sourceId;
+        if (!map.containsKey(sid)) {
+          map[sid] = _SourceStat(
+            sourceId: sid,
+            name: _sourceName(sid),
+            articles: [],
+          );
+        }
+        map[sid]!.articles.add(story);
+      }
+    }
+    final list = map.values.toList();
+    list.sort((a, b) => b.articles.length.compareTo(a.articles.length));
+    return list;
+  }
+
+  List<Story> get _filteredStories {
+    if (_selectedSource == 'all') return _allStories;
+    return _allStories.where((s) =>
+      s.previewArticles.any((a) => a.sourceId == _selectedSource)
+    ).toList();
+  }
+
+  String _sourceName(String id) {
+    const names = {
+      'g1': 'G1', 'folha': 'Folha', 'uol': 'UOL', 'estadao': 'Estadão',
+      'oglobo': 'O Globo', 'bbc': 'BBC', 'cnn': 'CNN', 'metropoles': 'Metrópolis',
+      'icl': 'ICL', 'reuters': 'Reuters', 'f9d8cfb1-c368-48d5-9f35-2a7157cee8b3': 'G1 (ap)',
+    };
+    return names[id] ?? id.toUpperCase();
   }
 
   @override
@@ -92,180 +133,65 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-            : RefreshIndicator(
-                onRefresh: _loadData,
-                color: AppTheme.primary,
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.analytics, color: AppTheme.primary, size: 24),
-                            const SizedBox(width: 8),
-                            const Text('📊 Análise Narrativa', style: TextStyle(
-                              color: AppTheme.texto, fontSize: 20, fontWeight: FontWeight.bold,
-                            )),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20),
-                              onPressed: _loadData,
-                            ),
-                          ],
-                        ),
-                      ),
+            : Column(
+                children: [
+                  _buildHeader(),
+                  TabBar(
+                    controller: _tabController,
+                    indicatorColor: AppTheme.primary,
+                    labelColor: AppTheme.primary,
+                    unselectedLabelColor: AppTheme.textoSec,
+                    tabs: const [
+                      Tab(text: '📰 Fontes', height: 40),
+                      Tab(text: '📊 Radar', height: 40),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSourcesTab(),
+                        _buildRadarTab(),
+                      ],
                     ),
-
-                    // Viés das fontes
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.card,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('📰 Viés por Fonte', style: TextStyle(
-                                color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
-                              )),
-                              const SizedBox(height: 16),
-                              ...?(_sources?.map((s) => _biasBar(s))) ?? [],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-                    // Grid de fontes
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            const Text('🗞️ Fontes Ativas', style: TextStyle(
-                              color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
-                            )),
-                            const Spacer(),
-                            Text(
-                              '${_sources?.length ?? 0} fontes',
-                              style: const TextStyle(color: AppTheme.textoSec, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.5,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => _sourceCard(_sources![i]),
-                          childCount: _sources!.length,
-                        ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-                    // Foreign Media section
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            const Text('🌍 Mídia Estrangeira', style: TextStyle(
-                              color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
-                            )),
-                            const Spacer(),
-                            Text(
-                              '${ForeignSource.all.length} fontes',
-                              style: const TextStyle(color: AppTheme.textoSec, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.8,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => _foreignSourceCard(ForeignSource.all[i]),
-                          childCount: ForeignSource.all.length,
-                        ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
   }
 
-  Widget _biasBar(Source s) {
-    final biasPos = _biasPosition(s.ideology);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+  Widget _buildHeader() {
+    final totalStories = _allStories.length;
+    final totalArticles = _allStories.fold<int>(0, (sum, s) => sum + s.articleCount);
+    return Container(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 100,
-                child: Text(s.name, style: const TextStyle(
-                  color: AppTheme.texto, fontSize: 12,
-                )),
+              const Icon(Icons.analytics, color: AppTheme.primary, size: 22),
+              const SizedBox(width: 8),
+              const Text('📊 Análise', style: TextStyle(
+                color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+              )),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20),
+                onPressed: _loadData,
               ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Container(height: 8, decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [
-                        Color(0xFF4CAF50), Color(0xFF8BC34A),
-                        Color(0xFF9E9E9E), Color(0xFFFF9800), Color(0xFFF44336),
-                      ]),
-                      borderRadius: BorderRadius.circular(4),
-                    )),
-                    Positioned(
-                      left: biasPos * 80,
-                      child: Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // KPI row
+          Row(
+            children: [
+              _kpiCard('📰', '$totalArticles', 'Artigos'),
+              const SizedBox(width: 8),
+              _kpiCard('📌', '$totalStories', 'Stories'),
+              const SizedBox(width: 8),
+              _kpiCard('🌐', '${_sourceStats.length}', 'Fontes'),
             ],
           ),
         ],
@@ -273,153 +199,609 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  double _biasPosition(String ideology) {
-    switch (ideology) {
-      case 'esquerda': return 0.0;
-      case 'centro-esquerda': return 0.25;
-      case 'centro': return 0.5;
-      case 'centro-direita': return 0.75;
-      case 'direita': return 1.0;
-      default: return 0.5;
-    }
-  }
-
-  Widget _sourceCard(Source s) {
-    final expanded = _expandedSources.contains(s.id);
-    final loading = _loadingArticles[s.id] == true;
-    final articles = _sourceArticles[s.id] ?? [];
-
-    // Calcula badges baseado em métricas
-    final badges = <Widget>[];
-
-    // Badge de alta atividade
-    if (s.articles24h >= 20) {
-      badges.add(_badge('🔥 Hot', const Color(0xFFFF5722)));
-    } else if (s.articles24h >= 15) {
-      badges.add(_badge('📈 Ativo', const Color(0xFFFF9800)));
-    }
-
-    // Badge de análise
-    final analysisRate = s.totalArticles > 0
-        ? (s.analyzedCount / s.totalArticles * 100).round()
-        : 0;
-    if (analysisRate >= 80) {
-      badges.add(_badge('✅ Analisado', const Color(0xFF4CAF50)));
-    } else if (analysisRate >= 50) {
-      badges.add(_badge('🔄 Parcial', const Color(0xFF2196F3)));
-    }
-
-    // Badge de fiabilidade (poucos erros)
-    if (s.failedCount == 0) {
-      badges.add(_badge('💚 0 erros', const Color(0xFF4CAF50)));
-    } else if (s.failedCount <= 3) {
-      badges.add(_badge('⚠️ ${s.failedCount} erros', const Color(0xFFFF9800)));
-    }
-
-    return GestureDetector(
-      onTap: () => _toggleSourceExpand(s.id),
+  Widget _kpiCard(String emoji, String value, String label) {
+    return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: AppTheme.card,
-          borderRadius: BorderRadius.circular(12),
-          border: expanded ? Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1.5) : null,
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Badges na parte superior
-            if (badges.isNotEmpty)
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: badges,
-              ),
-            if (badges.isNotEmpty) const SizedBox(height: 8),
-
-            // Nome e ideologia
-            Row(children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.name, style: const TextStyle(
-                      color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
-                    )),
-                    Text(_ideologyLabel(s.ideology), style: TextStyle(
-                      color: _biasColor(s.ideology), fontSize: 10,
-                    )),
-                  ],
-                ),
-              ),
-              Icon(
-                expanded ? Icons.expand_less : Icons.expand_more,
-                color: AppTheme.textoSec,
-                size: 18,
-              ),
-            ]),
-
-            const Spacer(),
-
-            // Métricas
-            Row(
-              children: [
-                Text('${s.articles24h}', style: const TextStyle(
-                  color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
-                )),
-                const SizedBox(width: 4),
-                const Text('art/24h', style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
-                const Spacer(),
-                Text('${s.analyzedCount}/${s.totalArticles}', style: const TextStyle(
-                  color: AppTheme.textoSec, fontSize: 10,
-                )),
-              ],
-            ),
-
-            // Barra de progresso de análise
+            Text(emoji, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: s.totalArticles > 0 ? s.analyzedCount / s.totalArticles : 0,
-                backgroundColor: AppTheme.surface,
-                valueColor: AlwaysStoppedAnimation<Color>(_analysisColor(analysisRate)),
-                minHeight: 4,
-              ),
-            ),
-
-            // Expanded articles section
-            if (expanded) ...[
-              const SizedBox(height: 10),
-              const Divider(color: AppTheme.surface, height: 1),
-              const SizedBox(height: 8),
-              const Text('📰 Artigos recentes', style: TextStyle(
-                color: AppTheme.textoSec, fontSize: 10, fontWeight: FontWeight.w600,
-              )),
-              const SizedBox(height: 6),
-              if (loading)
-                const Center(child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2)),
-                ))
-              else if (articles.isEmpty)
-                const Text('Nenhum artigo encontrado', style: TextStyle(
-                  color: AppTheme.textoSec, fontSize: 10,
-                ))
-              else
-                ...articles.map((story) => _sourceArticleItem(story)),
-            ],
+            Text(value, style: const TextStyle(
+              color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+            )),
+            Text(label, style: const TextStyle(
+              color: AppTheme.textoSec, fontSize: 10,
+            )),
           ],
         ),
       ),
     );
   }
 
-  Widget _sourceArticleItem(Story story) {
+  // ---- SOURCES TAB ----
+
+  Widget _buildSourcesTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Bias spectrum bar
+        _biasSpectrumBar(),
+        const SizedBox(height: 20),
+
+        // Source ranking
+        const Text('🏆 Ranking por Volume', style: TextStyle(
+          color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+        )),
+        const SizedBox(height: 8),
+        ..._sourceStats.take(15).map((s) => _sourceRankCard(s)),
+
+        const SizedBox(height: 20),
+
+        // Sentiment by source
+        const Text('😊 Sentimento Médio por Fonte', style: TextStyle(
+          color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+        )),
+        const SizedBox(height: 8),
+        _sentimentChart(),
+
+        const SizedBox(height: 20),
+
+        // Foreign media
+        const Text('🌍 Mídia Estrangeira', style: TextStyle(
+          color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
+        )),
+        const SizedBox(height: 8),
+        ...ForeignSource.all.map((s) => _foreignSourceCard(s)),
+
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+
+  Widget _biasSpectrumBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('⚖️ Espectro de Viés', style: TextStyle(
+            color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+          )),
+          const SizedBox(height: 12),
+          // Gradient bar with labels
+          Column(
+            children: [
+              Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [
+                    Color(0xFF4CAF50), Color(0xFF8BC34A),
+                    Color(0xFF9E9E9E), Color(0xFFFF9800), Color(0xFFF44336),
+                  ]),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _biasLabel('⬅️ Esq.', const Color(0xFF4CAF50)),
+                  _biasLabel('Centro-Esq.', const Color(0xFF8BC34A)),
+                  _biasLabel('Centro', const Color(0xFF9E9E9E)),
+                  _biasLabel('Centro-Dir.', const Color(0xFFFF9800)),
+                  _biasLabel('Dir. ➡️', const Color(0xFFF44336)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'Posicionamento editorial auto-declarado ou inferido por cobertura.',
+              style: TextStyle(color: AppTheme.textoSec, fontSize: 10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _biasLabel(String text, Color color) {
+    return Text(text, style: TextStyle(color: color, fontSize: 9));
+  }
+
+  Widget _sourceRankCard(_SourceStat s) {
+    final count = s.articles.length;
+    final sentiment = _sourceSentiment[s.sourceId] ?? 0;
+    final maxCount = _sourceStats.isNotEmpty ? _sourceStats.first.articles.length : 1;
+    final barWidth = count / maxCount;
+
+    return GestureDetector(
+      onTap: () => _showSourceDetail(s),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text(_sourceName(s.sourceId), style: const TextStyle(
+                    color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+                  )),
+                ),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: barWidth.clamp(0.0, 1.0),
+                        child: Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('$count', style: const TextStyle(
+                  color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
+                )),
+                const SizedBox(width: 4),
+                Text('arts', style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+                const SizedBox(width: 8),
+                _sentimentIcon(sentiment),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sentimentIcon(double sentiment) {
+    if (sentiment > 0.3) return const Text('😊', style: TextStyle(fontSize: 12));
+    if (sentiment < -0.3) return const Text('😟', style: TextStyle(fontSize: 12));
+    return const Text('😐', style: TextStyle(fontSize: 12));
+  }
+
+  Widget _sentimentChart() {
+    final stats = _sourceStats.take(8).toList();
+    if (stats.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SizedBox(
+        height: 120,
+        child: BarChart(
+          BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: 1,
+            minY: -1,
+            barTouchData: BarTouchData(enabled: false),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, _) {
+                    final idx = value.toInt();
+                    if (idx >= 0 && idx < stats.length) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _sourceName(stats[idx].sourceId).substring(0, 3),
+                          style: const TextStyle(color: AppTheme.textoSec, fontSize: 9),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                  reservedSize: 28,
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, _) {
+                    if (value == 1) return const Text('😊', style: TextStyle(fontSize: 10));
+                    if (value == -1) return const Text('😟', style: TextStyle(fontSize: 10));
+                    return const SizedBox.shrink();
+                  },
+                  reservedSize: 20,
+                ),
+              ),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: FlGridData(
+              show: true,
+              horizontalInterval: 1,
+              getDrawingHorizontalLine: (value) => FlLine(
+                color: AppTheme.surface,
+                strokeWidth: 0.5,
+              ),
+              drawVerticalLine: false,
+            ),
+            borderData: FlBorderData(show: false),
+            barGroups: stats.asMap().entries.map((e) {
+              final sentiment = _sourceSentiment[e.value.sourceId] ?? 0;
+              return BarChartGroupData(
+                x: e.key,
+                barRods: [
+                  BarChartRodData(
+                    toY: sentiment,
+                    color: sentiment > 0 ? Colors.green
+                        : sentiment < 0 ? Colors.red : Colors.grey,
+                    width: 16,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- RADAR TAB ----
+
+  Widget _buildRadarTab() {
+    return Column(
+      children: [
+        // Source filter chips
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            children: [
+              _filterChip('all', '🌐 Todas'),
+              ..._sourceStats.map((s) => _filterChip(s.sourceId, _sourceName(s.sourceId))),
+            ],
+          ),
+        ),
+        const Divider(color: AppTheme.surface, height: 1),
+        Expanded(
+          child: _filteredStories.isEmpty
+              ? const Center(child: Text('Nenhuma story encontrada',
+                  style: TextStyle(color: AppTheme.textoSec)))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _filteredStories.length,
+                  itemBuilder: (context, i) => _radarStoryItem(_filteredStories[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterChip(String id, String label) {
+    final selected = _selectedSource == id;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedSource = id),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : AppTheme.card,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(label, style: TextStyle(
+            color: selected ? Colors.white : AppTheme.textoSec,
+            fontSize: 12,
+          )),
+        ),
+      ),
+    );
+  }
+
+  Widget _radarStoryItem(Story story) {
+    // Show which sources covered this story
+    final sourceIds = story.previewArticles.map((a) => a.sourceId).toSet();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _cycleBadge(story.cycle),
+              const Spacer(),
+              Text('${story.previewArticles.length} arts', style: const TextStyle(
+                color: AppTheme.textoSec, fontSize: 10,
+              )),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(story.title, style: const TextStyle(
+            color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+          ), maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 6),
+          // Sources that covered this story
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: sourceIds.map((sid) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(_sourceName(sid), style: const TextStyle(
+                color: AppTheme.primary, fontSize: 9, fontWeight: FontWeight.w600,
+              )),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cycleBadge(String cycle) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: _cycleColor(cycle).withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(_cycleEmoji(cycle), style: const TextStyle(fontSize: 10)),
+    );
+  }
+
+  Color _cycleColor(String cycle) {
+    const colors = {
+      'conflito': Colors.red, 'economico': Colors.amber, 'politico': Colors.blue,
+      'social': Colors.green, 'tecnologico': Colors.purple, 'ambiental': Colors.teal,
+      'cultural': Colors.orange,
+    };
+    return colors[cycle] ?? AppTheme.primary;
+  }
+
+  String _cycleEmoji(String cycle) {
+    const map = {'conflito': '⚔️', 'economico': '📊', 'politico': '🏛️', 'social': '👥',
+      'tecnologico': '⚡', 'ambiental': '🌱', 'cultural': '🎭'};
+    return map[cycle] ?? '📰';
+  }
+
+  // ---- SOURCE DETAIL MODAL ----
+
+  void _showSourceDetail(_SourceStat s) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.bg,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, controller) => _sourceDetailSheet(s, controller),
+      ),
+    );
+  }
+
+  Widget _sourceDetailSheet(_SourceStat s, ScrollController controller) {
+    final count = s.articles.length;
+    final sentiment = _sourceSentiment[s.sourceId] ?? 0;
+    // Topics covered
+    final topics = <String, int>{};
+    for (final story in s.articles) {
+      topics[story.cycle] = (topics[story.cycle] ?? 0) + 1;
+    }
+    final topTopics = topics.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: ListView(
+        controller: controller,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.surface, borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Source name header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(_sourceSentimentEmoji(sentiment), style: const TextStyle(fontSize: 24)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_sourceName(s.sourceId), style: const TextStyle(
+                      color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+                    )),
+                    Text('$count artigos nas últimas stories', style: const TextStyle(
+                      color: AppTheme.textoSec, fontSize: 12,
+                    )),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(_sourceSentimentLabel(sentiment), style: const TextStyle(
+                  color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.w600,
+                )),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Sentiment gauge
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('😊 Sentimento Médio', style: TextStyle(
+                  color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+                )),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Text('😟', style: TextStyle(fontSize: 20)),
+                    Expanded(
+                      child: Container(
+                        height: 12,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [
+                            Colors.red.withValues(alpha: 0.7), Colors.grey, Colors.green.withValues(alpha: 0.7),
+                          ]),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    const Text('😊', style: TextStyle(fontSize: 20)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _sentimentColor(sentiment).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _sentimentDesc(sentiment),
+                      style: TextStyle(color: _sentimentColor(sentiment), fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Topics covered
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🏷️ Ciclos Cobertos', style: TextStyle(
+                  color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+                )),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: topTopics.map((e) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _cycleColor(e.key).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_cycleEmoji(e.key), style: const TextStyle(fontSize: 12)),
+                        const SizedBox(width: 4),
+                        Text('${e.value}', style: TextStyle(
+                          color: _cycleColor(e.key), fontSize: 12, fontWeight: FontWeight.bold,
+                        )),
+                      ],
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Articles from this source
+          const Text('📰 Artigos Recentes', style: TextStyle(
+            color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+          )),
+          const SizedBox(height: 8),
+          ...s.articles.take(20).map((story) {
+            final article = story.previewArticles.firstWhere(
+              (a) => a.sourceId == s.sourceId, orElse: () => story.previewArticles.first,
+            );
+            return _detailArticleItem(story, article);
+          }),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailArticleItem(Story story, dynamic article) {
     return GestureDetector(
       onTap: () async {
-        final url = story.previewArticles.isNotEmpty ? story.previewArticles.first.url : null;
+        final url = article.url as String?;
         if (url != null && url.isNotEmpty) {
           final uri = Uri.parse(url);
           if (await canLaunchUrl(uri)) {
@@ -428,29 +810,80 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         }
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(4),
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Row(children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(story.title, style: const TextStyle(
-                  color: AppTheme.texto, fontSize: 10,
-                ), maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(_timeAgo(story.updatedAt), style: const TextStyle(
-                  color: AppTheme.textoSec, fontSize: 9,
-                )),
+                _cycleBadge(story.cycle),
+                const Spacer(),
+                const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
               ],
             ),
-          ),
-          const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 12),
-        ]),
+            const SizedBox(height: 6),
+            Text(story.title, style: const TextStyle(
+              color: AppTheme.texto, fontSize: 12,
+            ), maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Text(_timeAgo(story.updatedAt), style: const TextStyle(
+              color: AppTheme.textoSec, fontSize: 10,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _foreignSourceCard(ForeignSource src) {
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.tryParse(src.url);
+        if (uri != null) {
+          try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Text('🌐', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(src.name, style: const TextStyle(
+                    color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+                  )),
+                  Text(src.url.replaceFirst('https://', '').replaceFirst('http://', ''),
+                      style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(src.language, style: const TextStyle(
+                color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w600,
+              )),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -462,100 +895,36 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     return '${diff.inDays}d atrás';
   }
 
-  Widget _badge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
-      ),
-      child: Text(text, style: TextStyle(
-        color: color, fontSize: 9, fontWeight: FontWeight.w600,
-      )),
-    );
+  String _sourceSentimentEmoji(double s) {
+    if (s > 0.3) return '😊';
+    if (s < -0.3) return '😟';
+    return '😐';
   }
 
-  Color _analysisColor(int rate) {
-    if (rate >= 80) return const Color(0xFF4CAF50);
-    if (rate >= 50) return const Color(0xFF2196F3);
-    return const Color(0xFFFF9800);
+  String _sourceSentimentLabel(double s) {
+    if (s > 0.3) return 'Positivo';
+    if (s < -0.3) return 'Negativo';
+    return 'Neutro';
   }
 
-  Color _biasColor(String ideology) {
-    switch (ideology) {
-      case 'esquerda': return const Color(0xFF4CAF50);
-      case 'centro-esquerda': return const Color(0xFF8BC34A);
-      case 'centro': return const Color(0xFF9E9E9E);
-      case 'centro-direita': return const Color(0xFFFF9800);
-      case 'direita': return const Color(0xFFF44336);
-      default: return AppTheme.textoSec;
-    }
+  String _sentimentDesc(double s) {
+    if (s > 0.5) return 'Tom predominantemente positivo';
+    if (s > 0.2) return 'Levemente positivo';
+    if (s > -0.2) return 'Neutro / equilibrado';
+    if (s > -0.5) return 'Levemente negativo';
+    return 'Tom predominantemente negativo';
   }
 
-  String _ideologyLabel(String ideology) {
-    switch (ideology) {
-      case 'esquerda': return '⬅️ Esquerda';
-      case 'centro-esquerda': return '↙️ Centro-Esquerda';
-      case 'centro': return '⏺️ Centro';
-      case 'centro-direita': return '↗️ Centro-Direita';
-      case 'direita': return '➡️ Direita';
-      default: return '❓ Indefinido';
-    }
+  Color _sentimentColor(double s) {
+    if (s > 0.2) return Colors.green;
+    if (s < -0.2) return Colors.red;
+    return Colors.grey;
   }
+}
 
-  Widget _foreignSourceCard(ForeignSource src) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Text('🌐', style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(src.name, style: const TextStyle(
-                color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
-              )),
-            ),
-          ]),
-          const SizedBox(height: 4),
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(src.country, style: const TextStyle(
-                color: AppTheme.textoSec, fontSize: 10,
-              )),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(src.language, style: const TextStyle(
-                color: AppTheme.primary, fontSize: 10,
-              )),
-            ),
-          ]),
-          const Spacer(),
-          Text(
-            src.url.replaceFirst('https://', '').replaceFirst('http://', ''),
-            style: const TextStyle(color: AppTheme.textoSec, fontSize: 9),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
+class _SourceStat {
+  final String sourceId;
+  final String name;
+  final List<Story> articles;
+  _SourceStat({required this.sourceId, required this.name, required this.articles});
 }
