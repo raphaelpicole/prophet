@@ -70,6 +70,20 @@ class _MainShellState extends State<MainShell> {
   final _devLabels = ['Radar', 'Análise', 'Profeta', 'Config', 'Admin'];
 
   @override
+  void initState() {
+    super.initState();
+    _checkDevParam();
+  }
+
+  void _checkDevParam() {
+    // ?dev opens Admin tab directly
+    final uri = Uri.base;
+    if (uri.queryParameters.containsKey('dev')) {
+      setState(() => _currentIndex = 4);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 800;
     final isRelease = kReleaseMode;
@@ -123,21 +137,28 @@ class _MainShellState extends State<MainShell> {
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = i),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
-            Icon(isSelected ? activeIcons[i] : icons[i],
-              color: isSelected ? AppTheme.primary : AppTheme.textoSec, size: 24),
-            const SizedBox(height: 4),
-            Text(labels[i], style: TextStyle(
+            Icon(
+              isSelected ? activeIcons[i] : icons[i],
               color: isSelected ? AppTheme.primary : AppTheme.textoSec,
-              fontSize: 10, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            )),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              labels[i],
+              style: TextStyle(
+                color: isSelected ? AppTheme.primary : AppTheme.textoSec,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ),
@@ -145,23 +166,51 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildBottomNav({required List<String> labels}) {
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
-
     return Container(
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppTheme.surface, width: 1)),
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: AppTheme.card, width: 1)),
       ),
-      child: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppTheme.bg,
-        selectedItemColor: AppTheme.primary,
-        unselectedItemColor: AppTheme.textoSec,
-        items: List.generate(labels.length, (i) => BottomNavigationBarItem(
-          icon: Icon(icons[i]),
-          label: labels[i],
-        )),
+      child: SafeArea(
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(labels.length, (i) => _bottomNavItem(i, labels)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomNavItem(int i, List<String> labels) {
+    final isSelected = _currentIndex == i;
+    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
+    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.settings, Icons.admin_panel_settings];
+
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = i),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcons[i] : icons[i],
+              color: isSelected ? AppTheme.primary : AppTheme.textoSec,
+              size: 24,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              labels[i],
+              style: TextStyle(
+                color: isSelected ? AppTheme.primary : AppTheme.textoSec,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
