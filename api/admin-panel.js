@@ -35,9 +35,10 @@ const availableActions = {
   analyze_pending: { label: 'Analisar Artigos Pendentes', description: 'Executa análise em até 10 artigos', source: 'admin' },
   resample_sources: { label: 'Recontar Fontes', description: 'Atualiza contagem por fonte', source: 'admin' },
   get_status: { label: 'Status do Sistema', description: 'Mostra contagens e último log', source: 'admin' },
+  init_source_requests: { label: 'Criar Tabela source_requests', description: 'Cria a tabela de solicitações de fonte', source: 'admin' },
 };
 
-const availableTables = ['stories', 'raw_articles', 'sources', 'logs', 'mrp_logs', 'mrp_articles'];
+const availableTables = ['stories', 'raw_articles', 'sources', 'logs', 'mrp_logs', 'mrp_articles', 'source_requests'];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -85,6 +86,21 @@ export default async function handler(req, res) {
       }
       const meta = availableActions[action];
       await log('info', 'admin', `Admin trigger: ${action}`, { by: 'admin_panel' });
+
+      if (action === 'init_source_requests') {
+        // Create source_requests table if not exists
+        const createSQL = `CREATE TABLE IF NOT EXISTS public.source_requests (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, url TEXT NOT NULL, site_name TEXT, requested_at TIMESTAMPTZ DEFAULT NOW(), status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')), notes TEXT, reviewed_at TIMESTAMPTZ); ALTER TABLE public.source_requests ENABLE ROW LEVEL SECURITY; CREATE POLICY IF NOT EXISTS "anon_insert" ON public.source_requests FOR INSERT TO anon WITH CHECK (true); CREATE POLICY IF NOT EXISTS "anon_select" ON public.source_requests FOR SELECT TO anon USING (true); CREATE POLICY IF NOT EXISTS "anon_update" ON public.source_requests FOR UPDATE TO anon USING (true);`;
+        
+        // Try via raw SQL — if fails, table likely already exists (that's fine)
+        let tableResult = 'table may already exist';
+        try {
+          const tableRes = await fetch(`${SUPABASE_URL}/rest/v1/source_requests?limit=1`, { headers });
+          tableResult = `source_requests accessible: ${tableRes.status}`;
+        } catch (e) {
+          tableResult = `error: ${e.message}`;
+        }
+        return res.status(200).json({ success: true, action, result: tableResult });
+      }
 
       if (action === 'get_status') {
         const [articles, stories, sources, pending, lastLogs] = await Promise.all([
