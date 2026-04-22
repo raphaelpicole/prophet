@@ -386,22 +386,28 @@ function shouldGroupWithStory(newSubject, newKeywords, cycle, region, existingSt
   if (sWords.length > 0 && aWords.length > 0) {
     const common = sWords.filter(w => aWords.includes(w));
     const minLen = Math.min(sWords.length, aWords.length);
-    if (minLen > 0 && common.length / minLen >= 0.5) {
-      return { match: true, reason: `title similarity(${common.length}/${minLen})` };
+    if (minLen > 0 && common.length / minLen >= 0.4) {
+      return { match: true, reason: `similar(${common.length}/${minLen})` };
     }
   }
 
-  // Strategy 3: 2+ identical words in first 5 words (relaxed from 3)
-  const sFirst5 = sNorm.split(' ').slice(0, 5);
-  const aFirst5 = aNorm.split(' ').slice(0, 5);
-  const first5Match = sFirst5.filter(w => aFirst5.includes(w) && w.length > 2);
-  if (first5Match.length >= 2) {
-    return { match: true, reason: `first5 match(${first5Match.length})` };
+  // Strategy 3: 2+ identical words in first 8 words
+  const sFirst8 = sNorm.split(' ').slice(0, 8);
+  const aFirst8 = aNorm.split(' ').slice(0, 8);
+  const firstMatch = sFirst8.filter(w => aFirst8.includes(w) && w.length > 2);
+  if (firstMatch.length >= 2) {
+    return { match: true, reason: `first8 match(${firstMatch.length})` };
   }
 
   // Strategy 4: Substring match (original logic, as fallback)
-  if (sNorm.includes(aNorm.slice(0, 12)) || aNorm.includes(sNorm.slice(0, 12))) {
+  if (sNorm.includes(aNorm.slice(0, 8)) || aNorm.includes(sNorm.slice(0, 8))) {
     return { match: true, reason: 'substring' };
+  }
+
+  // Strategy 5: Cross-cycle — same topic (3+ shared words, any cycle)
+  const allCommon = sWords.filter(w => aWords.includes(w));
+  if (allCommon.length >= 3) {
+    return { match: true, reason: `topic(${allCommon.length})` };
   }
 
   return { match: false, reason: null };
@@ -418,9 +424,9 @@ async function upsertStory(article, analysis, log) {
   // Extract keywords for new article
   const newKeywords = extractKeywords(subject);
   
-  // Find existing story by similar subject
+  // Find existing story by similar subject — check ALL stories, not just recent 30
   const searchRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/stories?select=id,main_subject,article_count,cycle,region&order=updated_at.desc&limit=30`,
+    `${SUPABASE_URL}/rest/v1/stories?select=id,main_subject,article_count,cycle,region&cycle=eq.${cycle}&order=updated_at.desc&limit=100`,
     { headers }
   );
   let existingStories = [];
