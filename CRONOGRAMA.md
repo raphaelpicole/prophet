@@ -145,6 +145,17 @@ Supabase (banco)
 
 ---
 
+## 🎮 Gamificação (roadmap futuro)
+- [ ] Streaks diários de leitura
+- [ ] Badges e XP por ação (ler story, prever, streak)
+- [ ] "Dieta de mídia" — score de diversidade de viés por semana
+- [ ] Comparar previsões do usuário com as do Prophet
+- [ ] Leaderboard B2B para equipes
+- [ ] Desafios temáticos diários/semanais
+- [ ] Níveis: Iniciante → Analista → Perito → Mestre
+
+---
+
 ## 📊 Estatísticas Atuais (21/abr)
 
 | Métrica | Valor |
