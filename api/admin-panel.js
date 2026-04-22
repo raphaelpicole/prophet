@@ -36,6 +36,7 @@ const availableActions = {
   resample_sources: { label: 'Recontar Fontes', description: 'Atualiza contagem por fonte', source: 'admin' },
   get_status: { label: 'Status do Sistema', description: 'Mostra contagens e último log', source: 'admin' },
   init_source_requests: { label: 'Criar Tabela source_requests', description: 'Cria a tabela de solicitações de fonte', source: 'admin' },
+  regroup_stories: { label: 'Reagrupar Stories', description: 'Reagrupa stories com apenas 1 artigo', source: 'admin' },
 };
 
 const availableTables = ['stories', 'raw_articles', 'sources', 'logs', 'mrp_logs', 'mrp_articles', 'source_requests'];
@@ -120,6 +121,88 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ success: true, action, result: `${action} executed` });
+    }
+
+    // ── regroup_stories ────────────────────────────────────────
+    if (action === 'regroup_stories') {
+      const STOPWORDS = new Set(['o','a','os','as','um','uma','de','da','do','no','na','em','e','é','que','para','com','por','foi','ser','são','está','estão','era','eram','tem','têm','há','tinha','tinham','como','mas','ou','porque','quando','onde','quem','qual','quais','não','nunca','sim','só','também','até','desde','durante','sem']);
+
+      function normalizeTitle(title) {
+        return title.toLowerCase()
+          .replace(/[^\w\sàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\-]/gi, ' ')
+          .replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+
+      function extractKeywords(title, maxKeywords = 5) {
+        const words = normalizeTitle(title).split(' ').filter(w => w.length > 2 && !STOPWORDS.has(w));
+        return new Set(words.slice(0, 8));
+      }
+
+      function keywordOverlap(kw1, kw2) {
+        let shared = 0;
+        for (const w of kw1) { if (kw2.has(w)) shared++; }
+        return shared;
+      }
+
+      // Get all stories with 1 article
+      const storiesRes = await fetch(`${SUPABASE_URL}/rest/v1/stories?select=id,title,main_subject,cycle,region&article_count=eq.1`, { headers });
+      const lonelyStories = await storiesRes.json();
+      if (!Array.isArray(lonelyStories)) {
+        return res.status(200).json({ success: true, action, result: 'no lonely stories found' });
+      }
+
+      // Index all by cycle/region for faster lookup
+      const byKey = {};
+      for (const s of lonelyStories) {
+        const key = `${s.cycle}::${s.region}`;
+        if (!byKey[key]) byKey[key] = [];
+        s._kw = extractKeywords(s.main_subject || s.title || '');
+        byKey[key].push(s);
+      }
+
+      let merged = 0, checked = 0;
+      for (const [key, group] of Object.entries(byKey)) {
+        for (let i = 0; i < group.length; i++) {
+          for (let j = i + 1; j < group.length; j++) {
+            const a = group[i], b = group[j];
+            const overlap = keywordOverlap(a._kw, b._kw);
+            if (overlap >= 2) {
+              // Merge b into a (keep a, delete b, relink articles)
+              const bArticles = await fetch(`${SUPABASE_URL}/rest/v1/story_articles?story_id=eq.${b.id}&select=id,article_id`, { headers }).then(r => r.json()).catch(() => []);
+              if (Array.isArray(bArticles)) {
+                for (const ba of bArticles) {
+                  await fetch(`${SUPABASE_URL}/rest/v1/story_articles`, {
+                    method: 'POST',
+                    headers: { ...headers, Prefer: 'return=representation' },
+                    body: JSON.stringify({ story_id: a.id, article_id: ba.article_id }),
+                  }).catch(() => {});
+                  await fetch(`${SUPABASE_URL}/rest/v1/story_articles?id=eq.${ba.id}`, {
+                    method: 'DELETE', headers,
+                  }).catch(() => {});
+                }
+              }
+              await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${b.id}`, {
+                method: 'DELETE', headers,
+              });
+              // Update a article_count
+              const aArticles = await fetch(`${SUPABASE_URL}/rest/v1/story_articles?story_id=eq.${a.id}&select=id`, { headers }).then(r => r.json()).catch(() => []);
+              const newCount = Array.isArray(aArticles) ? aArticles.length : 1;
+              await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${a.id}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ article_count: newCount }),
+              });
+              merged++;
+              group.splice(j, 1); j--;
+            }
+            checked++;
+          }
+        }
+      }
+
+      const result = `regroup complete: ${merged} stories merged out of ${checked} checked`;
+      await log('info', 'admin', `Admin: ${result}`, { by: 'admin' });
+      return res.status(200).json({ success: true, action, result, merged, checked });
     }
 
     // POST /api/admin/source-request → submit source request
