@@ -48,13 +48,21 @@ export default async function handler(req, res) {
     const allPreds = Array.isArray(allPredsRaw) ? allPredsRaw : [];
 
     for (const p of allPreds) {
-      const desc = (p.description || '').toLowerCase().trim();
-      if (desc === 'test' || desc === 'teste' || desc === '{"evento":"teste"}') {
+      const desc = (p.description || '').trim();
+      // Delete: exact "test"/"Teste", or JSON with "Teste" evento, or JSON with reasoning:"test"
+      const isTest = desc.toLowerCase() === 'test' || desc.toLowerCase() === 'teste';
+      let isTestJson = false;
+      try {
+        const parsed = JSON.parse(desc);
+        isTestJson = (parsed.evento && parsed.evento.toLowerCase() === 'teste') ||
+                     (parsed.reasoning && parsed.reasoning.toLowerCase() === 'test');
+      } catch {}
+      if (isTest || isTestJson) {
         await fetch(`${SUPABASE_URL}/rest/v1/predictions?id=eq.${p.id}`, {
           method: 'DELETE',
           headers,
         });
-        log.push(`Deleted: ${p.id} — "${p.description?.slice(0, 30)}"`);
+        log.push(`Deleted test: ${p.id} — "${p.description?.slice(0, 40)}"`);
       }
     }
 
