@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/constants.dart';
+import '../../data/services/api_service.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -27,20 +26,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   int _totalRows = 0;
   static const int _tablePageSize = 20;
 
-  // Source request form controllers
-  final _urlController = TextEditingController();
-  final _nameController = TextEditingController();
-  bool _submittingSource = false;
-
   final List<Map<String, String>> _adminActions = [
     {'key': 'run_collect', 'label': '📡 Coleta RSS', 'description': 'Coleta novos artigos via RSS'},
     {'key': 'analyze_pending', 'label': '🧠 Analisar Artigos', 'description': 'Envia artigos pendentes para análise IA'},
-    {'key': 'resample_sources', 'label': '🔄 Recontar Fontes', 'description': 'Atualiza contagem de artigos por fonte'},
-    {'key': 'get_status', 'label': '📊 Status', 'description': 'Mostra estatísticas do sistema'},
+    {'key': 'group_stories', 'label': '🔗 Agrupar Stories', 'description': 'Agrupar artigos em stories'},
+    {'key': 'cleanup_logs', 'label': '🧹 Limpar Logs', 'description': 'Remove logs antigos do sistema'},
+    {'key': 'get_status', 'label': '📊 Status do Sistema', 'description': 'Verificar status e métricas do sistema'},
   ];
 
   final List<String> _tables = [
-    'stories', 'raw_articles', 'sources', 'logs', 'source_requests',
+    'raw_articles', 'stories', 'sources', 'predictions',
+    'logs', 'analysis', 'regions', 'story_articles', 'entities',
   ];
 
   @override
@@ -53,8 +49,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   @override
   void dispose() {
     _tabController.dispose();
-    _urlController.dispose();
-    _nameController.dispose();
     super.dispose();
   }
 
@@ -122,69 +116,27 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
     if (confirm != true) return;
 
-    setState(() => _loadingAction = true);
+    setState(() => _loading = true);
     try {
       final result = await _api.runAdminAction(actionKey);
       final success = result['success'] == true;
       await _loadAll();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(success ? '✅ ${result['result'] ?? 'Ação executada'}' : '❌ ${result['error'] ?? 'Erro'}'),
+          content: Text(success
+              ? '✅ ${result['result'] ?? 'Ação executada'}'
+              : '❌ ${result['error'] ?? 'Erro'}'),
           backgroundColor: success ? AppTheme.sucesso : AppTheme.alerta,
         ));
       }
     } catch (e) {
+      setState(() { _loadingAction = false; _loading = false; });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: AppTheme.alerta));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('❌ Erro: $e'),
+          backgroundColor: AppTheme.alerta,
+        ));
       }
-    } finally {
-      if (mounted) setState(() => _loadingAction = false);
-    }
-  }
-
-  Future<void> _submitSourceRequest() async {
-    final url = _urlController.text.trim();
-    final name = _nameController.text.trim();
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe a URL do feed RSS'), backgroundColor: AppTheme.alerta),
-      );
-      return;
-    }
-
-    setState(() => _submittingSource = true);
-    try {
-      final res = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/admin/source-request'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'url': url, 'site_name': name.isNotEmpty ? name : null}),
-      );
-      final data = jsonDecode(res.body);
-      final inserted = data is List ? data[0] : data;
-      if (inserted != null && inserted['id'] != null) {
-        _urlController.clear();
-        _nameController.clear();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Solicitacao enviada! Analisaremos: ${name.isNotEmpty ? name : url}'), backgroundColor: AppTheme.sucesso),
-          );
-        }
-      } else {
-        final errMsg = data['message'] ?? data['code'] ?? 'Erro desconhecido';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro: $errMsg'), backgroundColor: AppTheme.alerta),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e'), backgroundColor: AppTheme.alerta),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _submittingSource = false);
     }
   }
 
@@ -212,9 +164,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         children: [
           const Icon(Icons.admin_panel_settings, color: AppTheme.primary, size: 22),
           const SizedBox(width: 8),
-          const Text('⚙️ Admin', style: TextStyle(color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('⚙️ Admin', style: TextStyle(
+            color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
+          )),
           const Spacer(),
-          IconButton(icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20), onPressed: _loadAll),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppTheme.textoSec, size: 20),
+            onPressed: _loadAll,
+          ),
         ],
       ),
     );
@@ -225,7 +182,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -274,43 +234,50 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         labelColor: AppTheme.primary,
         unselectedLabelColor: AppTheme.textoSec,
         indicatorColor: AppTheme.primary,
-        isScrollable: true,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: const TextStyle(fontSize: 12),
         tabs: const [
-          Tab(text: 'Ações'),
-          Tab(text: 'Tabelas'),
-          Tab(text: 'Logs'),
-          Tab(text: '📡 Solicitar Fonte'),
+          Tab(text: '⚡ Ações'),
+          Tab(text: '🗄️ Tabelas'),
+          Tab(text: '📋 Logs'),
         ],
       ),
     );
   }
 
   Widget _buildTabContent() {
+    if (_loading && _stats == null) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2));
+    }
     return TabBarView(
       controller: _tabController,
       children: [
         _buildActionsTab(),
         _buildTablesTab(),
         _buildLogsTab(),
-        _buildSolicitarFonteTab(),
       ],
     );
   }
 
   Widget _buildActionsTab() {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        ..._adminActions.map((a) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _actionCard(a['key']!, a['label']!, a['description']!),
-        )),
-      ],
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.4,
+      ),
+      itemCount: _adminActions.length,
+      itemBuilder: (context, i) {
+        final action = _adminActions[i];
+        return _adminActionCard(action['key']!, action['label']!, action['description']!);
+      },
     );
   }
 
-  Widget _actionCard(String key, String label, String description) {
+  Widget _adminActionCard(String key, String label, String description) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.card,
@@ -328,9 +295,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(label, style: const TextStyle(color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(label, style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.bold,
+                )),
                 const SizedBox(height: 6),
-                Text(description, style: const TextStyle(color: AppTheme.textoSec, fontSize: 11), maxLines: 2),
+                Text(description, style: const TextStyle(
+                  color: AppTheme.textoSec, fontSize: 11,
+                ), maxLines: 2),
                 if (_loadingAction) ...[
                   const SizedBox(height: 8),
                   const LinearProgressIndicator(color: AppTheme.primary, minHeight: 2),
@@ -346,11 +317,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   Widget _buildTablesTab() {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: SizedBox(
-            height: 40,
-            child: ListView(scrollDirection: Axis.horizontal, children: _tables.map((t) {
+        // Table selector
+        Container(
+          height: 40,
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: ListView(scrollDirection: Axis.horizontal, children: _tables.map((t) {
             final active = _selectedTable == t;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -363,13 +334,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: active ? AppTheme.primary : AppTheme.surface),
                   ),
-                  child: Text(t, style: TextStyle(color: active ? Colors.white : AppTheme.textoSec, fontSize: 12)),
+                  child: Text(t, style: TextStyle(
+                    color: active ? Colors.white : AppTheme.textoSec,
+                    fontSize: 12,
+                  )),
                 ),
               ),
             );
           }).toList()),
-          ),
         ),
+        // Table data
         Expanded(
           child: _selectedTable == null
               ? Center(child: Text('Selecione uma tabela acima', style: TextStyle(color: AppTheme.textoSec)))
@@ -379,6 +353,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ? Center(child: Text('Nenhum registro', style: TextStyle(color: AppTheme.textoSec)))
                       : Column(
                           children: [
+                            // Pagination info
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                               child: Row(
@@ -389,21 +364,32 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                                 ],
                               ),
                             ),
+                            // Table
                             Expanded(
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
                                 itemCount: _tableData.length,
-                                itemBuilder: (context, i) => _tableRow(_tableData[i]),
+                                itemBuilder: (context, i) {
+                                  final row = _tableData[i];
+                                  return _tableRow(row);
+                                },
                               ),
                             ),
+                            // Pagination buttons
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  IconButton(icon: const Icon(Icons.chevron_left, color: AppTheme.textoSec), onPressed: _page > 0 ? () => _loadTable(_selectedTable!, _page - 1) : null),
+                                  IconButton(
+                                    icon: const Icon(Icons.chevron_left, color: AppTheme.textoSec),
+                                    onPressed: _page > 0 ? () => _loadTable(_selectedTable!, _page - 1) : null,
+                                  ),
                                   const SizedBox(width: 16),
-                                  IconButton(icon: const Icon(Icons.chevron_right, color: AppTheme.textoSec), onPressed: _page < _totalPages - 1 ? () => _loadTable(_selectedTable!, _page + 1) : null),
+                                  IconButton(
+                                    icon: const Icon(Icons.chevron_right, color: AppTheme.textoSec),
+                                    onPressed: _page < _totalPages - 1 ? () => _loadTable(_selectedTable!, _page + 1) : null,
+                                  ),
                                 ],
                               ),
                             ),
@@ -415,49 +401,108 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Widget _tableRow(Map<String, dynamic> row) {
-    final cols = row.keys.take(4).toList();
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.surface.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header with id
           Row(
-            children: cols.map((k) => Container(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text('${row[k] ?? ''}', style: TextStyle(color: AppTheme.texto, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-            )).toList(),
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'id: ${_shortId(row['id'])}',
+                  style: TextStyle(color: AppTheme.textoSec, fontSize: 10, fontFamily: 'monospace'),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _timeAgo(row['created_at'] ?? row['updated_at'] ?? ''),
+                style: TextStyle(color: AppTheme.textoSec, fontSize: 10),
+              ),
+            ],
           ),
+          const SizedBox(height: 6),
+          // Key-value pairs
+          ...row.entries
+              .where((e) => !['id', 'created_at', 'updated_at'].contains(e.key))
+              .take(6)
+              .map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 80,
+                          child: Text('${e.key}:', style: TextStyle(
+                            color: AppTheme.primary, fontSize: 11, fontFamily: 'monospace',
+                          )),
+                        ),
+                        Expanded(child: Text(
+                          _formatValue(e.value),
+                          style: TextStyle(color: AppTheme.texto, fontSize: 11, fontFamily: 'monospace'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        )),
+                      ],
+                    ),
+                  )),
         ],
       ),
     );
   }
 
   Widget _buildLogsTab() {
-    if (_logs.isEmpty) return Center(child: Text('Nenhum log', style: TextStyle(color: AppTheme.textoSec)));
+    if (_logs.isEmpty) {
+      return Center(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.receipt_long, color: AppTheme.textoSec, size: 48),
+          const SizedBox(height: 12),
+          Text('Nenhum log disponível', style: TextStyle(color: AppTheme.textoSec)),
+          const SizedBox(height: 12),
+          TextButton(onPressed: _loadAll, child: const Text('Recarregar')),
+        ],
+      ));
+    }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: _logs.length,
-      itemBuilder: (context, i) => _logItem(_logs[i]),
+      itemBuilder: (context, i) {
+        final log = _logs[i];
+        return _logRow(log);
+      },
     );
   }
 
-  Widget _logItem(Map<String, dynamic> log) {
+  Widget _logRow(Map<String, dynamic> log) {
     final level = log['level'] ?? 'info';
-    final color = level == 'error' ? AppTheme.alerta : level == 'warning' ? AppTheme.warning : AppTheme.textoSec;
-    final icon = level == 'error' ? '❌' : level == 'warning' ? '⚠️' : 'ℹ️';
+    final color = level == 'error' ? AppTheme.alerta
+        : level == 'warn' ? AppTheme.warning
+        : level == 'critical' ? Colors.red
+        : AppTheme.sucesso;
+    final icon = level == 'error' ? '🔴'
+        : level == 'warn' ? '🟡'
+        : level == 'critical' ? '🚨'
+        : 'ℹ️';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,19 +513,22 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(log['message'] ?? '', style: const TextStyle(color: AppTheme.texto, fontSize: 12)),
+                Text(log['message'] ?? '', style: TextStyle(color: AppTheme.texto, fontSize: 12)),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                      child: Text(level.toUpperCase(), style: TextStyle(color: color, fontSize: 10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(level.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 6),
-                    Text(log['source'] ?? '', style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+                    Text(log['source'] ?? '', style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
                     const Spacer(),
-                    Text(_timeAgo(log['created_at'] ?? ''), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
+                    Text(_timeAgo(log['created_at'] ?? ''), style: TextStyle(color: AppTheme.textoSec, fontSize: 10)),
                   ],
                 ),
               ],
@@ -491,6 +539,94 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
   }
 
+  String _shortId(dynamic id) {
+    if (id == null) return '-';
+    final s = id.toString();
+    return s.length > 8 ? '${s.substring(0, 8)}…' : s;
+  }
+
+  String _formatValue(dynamic value) {
+    if (value == null) return 'null';
+    if (value is Map || value is List) {
+      final s = value.toString();
+      return s.length > 60 ? '${s.substring(0, 60)}…' : s;
+    }
+    final s = value.toString();
+    return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+  }
+
+  String _timeAgo(String isoDate) {
+    if (isoDate.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(isoDate);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return '${diff.inSeconds}s atrás';
+      if (diff.inHours < 1) return '${diff.inMinutes}m atrás';
+      if (diff.inDays < 1) return '${diff.inHours}h atrás';
+      return '${diff.inDays}d atrás';
+    } catch (e) { return isoDate.substring(0, 10); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Source Request Form
+  // ─────────────────────────────────────────────────────────────────
+  final _urlController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _submittingSource = false;
+
+  Future<void> _submitSourceRequest() async {
+    final url = _urlController.text.trim();
+    final name = _nameController.text.trim();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe a URL do feed RSS'), backgroundColor: AppTheme.alerta),
+      );
+      return;
+    }
+
+    setState(() => _submittingSource = true);
+    try {
+      final res = await fetch(
+        '${ApiConstants.baseUrl}/rest/v1/source_requests',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ApiConstants.supabaseKey,
+          'Authorization': 'Bearer ${ApiConstants.supabaseKey}',
+          'Prefer': 'return=representation',
+        },
+        body: jsonEncode({
+          'url': url,
+          'site_name': name.isNotEmpty ? name : null,
+        }),
+      );
+      final data = await res.json();
+      final inserted = Array.isArray(data) ? data[0] : data;
+      if (inserted != null && inserted['id'] != null) {
+        _urlController.clear();
+        _nameController.clear();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Solicitação enviada! Analisaremos: \${{name.isNotEmpty ? name : url}}'),
+              backgroundColor: AppTheme.sucesso,
+            ),
+          );
+        }
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: \${{data['message'] ?? data['code'] ?? 'desconhecido'}}'), backgroundColor: AppTheme.alerta),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro: \$e'), backgroundColor: AppTheme.alerta),
+      );
+    } finally {
+      if (mounted) setState(() => _submittingSource = false);
+    }
+  }
+
   Widget _buildSolicitarFonteTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -499,7 +635,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -507,19 +646,26 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   children: [
                     Icon(Icons.rss_feed, color: AppTheme.primary, size: 20),
                     SizedBox(width: 8),
-                    Text('Solicitar Nova Fonte', style: TextStyle(color: AppTheme.texto, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('Solicitar Nova Fonte', style: TextStyle(
+                      color: AppTheme.texto, fontSize: 16, fontWeight: FontWeight.bold,
+                    )),
                   ],
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Informe a URL do feed RSS da fonte de noticias que deseja adicionar ao Prophet. Nossa equipe analisara a fonte e, se aprovada, incluira no proximo pipeline.',
+                  'Informe a URL do feed RSS da fonte de notícias que deseja adicionar ao Prophet. Nossa equipe analisará a fonte e, se aprovada, a incluirá no próximo pipeline.',
                   style: TextStyle(color: AppTheme.textoSec, fontSize: 12),
                 ),
                 const SizedBox(height: 20),
+
+                // Site name field
                 const Text('Nome da Fonte (opcional)', style: TextStyle(color: AppTheme.textoSec, fontSize: 11)),
                 const SizedBox(height: 4),
                 Container(
-                  decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: TextField(
                     controller: _nameController,
                     style: const TextStyle(color: AppTheme.texto, fontSize: 13),
@@ -532,10 +678,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // URL field
                 const Text('URL do Feed RSS *', style: TextStyle(color: AppTheme.textoSec, fontSize: 11)),
                 const SizedBox(height: 4),
                 Container(
-                  decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: TextField(
                     controller: _urlController,
                     style: const TextStyle(color: AppTheme.texto, fontSize: 13),
@@ -550,6 +701,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Submit button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -567,7 +720,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ],
             ),
           ),
+
           const SizedBox(height: 20),
+
+          // Info box
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -578,60 +734,21 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Como funciona', style: TextStyle(color: AppTheme.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('💡 Como funciona', style: TextStyle(color: AppTheme.primary, fontSize: 13, fontWeight: FontWeight.w600)),
                 SizedBox(height: 6),
-                Text(
-                  '1. Voce envia a URL do feed RSS\n'
-                  '2. Nossa equipe analisa a cobertura e vies\n'
-                  '3. Se aprovada, a fonte entra no proximo deploy\n'
-                  '4. Voce e notificado na tela de Fontes',
-                  style: TextStyle(color: AppTheme.textoSec, fontSize: 11, height: 1.5),
-                ),
+                Text('1. Você envia a URL do feed RSS
+'
+                    '2. Nossa equipe analisa a cobertura e viés
+'
+                    '3. Se aprovada, a fonte entra no próximo deploy
+'
+                    '4. Você é notificado na tela de Fontes', 
+                  style: TextStyle(color: AppTheme.textoSec, fontSize: 11, height: 1.5)),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  String _timeAgo(String isoDate) {
-    if (isoDate.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(isoDate);
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1) return '${diff.inSeconds}s atrás';
-      if (diff.inHours < 1) return '${diff.inMinutes}m atrás';
-      if (diff.inDays < 1) return '${diff.inHours}h atrás';
-      return '${diff.inDays}d atrás';
-    } catch (e) {
-      return isoDate.substring(0, 10);
-    }
-  }
-}
-
-// Minimal ApiService for AdminScreen
-class ApiService {
-  static const String baseUrl = 'https://prophet-olive.vercel.app/api';
-
-  Future<Map<String, dynamic>> getAdminActions() async {
-    final res = await http.get(Uri.parse('$baseUrl/admin'));
-    return jsonDecode(res.body);
-  }
-
-  Future<List<dynamic>> getAdminLogs() async {
-    final res = await http.get(Uri.parse('$baseUrl/logs?limit=50'));
-    return jsonDecode(res.body);
-  }
-
-  Future<Map<String, dynamic>> getAdminTable(String table, int page) async {
-    final offset = page * 20;
-    final res = await http.get(Uri.parse('$baseUrl/admin/tables/$table?limit=20&offset=$offset'));
-    return jsonDecode(res.body);
-  }
-
-  Future<Map<String, dynamic>> runAdminAction(String action) async {
-    final res = await http.post(Uri.parse('$baseUrl/admin/actions?action=$action'));
-    return jsonDecode(res.body);
   }
 }

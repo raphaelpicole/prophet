@@ -122,6 +122,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, action, result: `${action} executed` });
     }
 
+    // POST /api/admin/source-request → submit source request
+    if (resource === 'source-request' && req.method === 'POST') {
+      const body = req.body || {};
+      const url = body.url || '';
+      const siteName = body.site_name || null;
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/source_requests`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ url, site_name: siteName }),
+      });
+      const data = await insertRes.json();
+      return res.status(insertRes.status).json(Array.isArray(data) ? data[0] : data);
+    }
+
     // GET /api/admin/tables → list tables
     if (resource === 'tables' && req.method === 'GET' && !subResource) {
       return res.status(200).json({ tables: availableTables });
