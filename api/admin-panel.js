@@ -120,9 +120,6 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(200).json({ success: true, action, result: `${action} executed` });
-    }
-
     // ── regroup_stories ────────────────────────────────────────
     if (action === 'regroup_stories') {
       const STOPWORDS = new Set(['o','a','os','as','um','uma','de','da','do','no','na','em','e','é','que','para','com','por','foi','ser','são','está','estão','era','eram','tem','têm','há','tinha','tinham','como','mas','ou','porque','quando','onde','quem','qual','quais','não','nunca','sim','só','também','até','desde','durante','sem']);
@@ -204,6 +201,9 @@ export default async function handler(req, res) {
       await log('info', 'admin', `Admin: ${result}`, { by: 'admin' });
       return res.status(200).json({ success: true, action, result, merged, checked });
     }
+
+    // Unknown action fallback
+    return res.status(400).json({ success: false, error: `Unknown action: ${action}` });
 
     // POST /api/admin/source-request → submit source request
     if (resource === 'source-request' && req.method === 'POST') {
