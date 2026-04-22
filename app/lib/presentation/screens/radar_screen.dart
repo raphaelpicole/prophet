@@ -550,18 +550,18 @@ class _RadarScreenState extends State<RadarScreen> {
   // ────────────────────────────────────────────────────────────────
   // Timeline chart builder
   // ────────────────────────────────────────────────────────────────
+  String _selectedTimelineCycle = 'all';
+
   Widget _buildTimelineChart(
     List<MapEntry<DateTime, int>> totalData,
     Map<String, List<MapEntry<DateTime, int>>> byCycle,
   ) {
-    // Build last-7-days x-axis
     final now = DateTime.now();
     final days = List.generate(7, (i) {
       final d = now.subtract(Duration(days: 6 - i));
       return DateTime(d.year, d.month, d.day);
     });
 
-    // Color per cycle
     final cycleColors = {
       'conflito': AppTheme.alerta,
       'economico': AppTheme.warning,
@@ -572,70 +572,211 @@ class _RadarScreenState extends State<RadarScreen> {
       'cultural': Colors.purple,
     };
 
-    // Build bar groups (one group per day)
-    final maxY = totalData.fold<int>(1, (m, e) => e.value > m ? e.value : m).toDouble();
+    // Sentiment data per day (-1 to 1)
+    final sentimentPerDay = List.generate(days.length, (i) {
+      final day = days[i];
+      final dayStories = _stories.where((s) {
+        final d = DateTime(s.updatedAt.year, s.updatedAt.month, s.updatedAt.day);
+        return d.year == day.year && d.month == day.month && d.day == day.day;
+      }).toList();
+      if (dayStories.isEmpty) return null;
+      double sum = 0;
+      for (final s in dayStories) {
+        sum += s.sentimentTrend == 'rising' ? 1.0 : s.sentimentTrend == 'falling' ? -1.0 : 0.0;
+      }
+      return sum / dayStories.length;
+    });
 
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: maxY < 1 ? 1 : maxY + 1,
-        barGroups: List.generate(days.length, (i) {
-          final day = days[i];
-          final total = totalData.where((e) =>
-            e.key.year == day.year && e.key.month == day.month && e.key.day == day.day
-          ).fold(0, (sum, e) => sum + e.value);
-
-          return BarChartGroupData(
-            x: i,
-            barRods: [
-              BarChartRodData(
-                toY: total.toDouble(),
-                width: 14,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                color: AppTheme.primary.withValues(alpha: 0.85),
-                rodStackItems: [],
-              ),
-            ],
-          );
-        }),
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (v, _) {
-                final day = days[v.toInt()];
-                final labels = ['D-6','D-5','D-4','D-3','D-2','D-1','Hoje'];
-                return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    labels[v.toInt()],
-                    style: const TextStyle(color: AppTheme.textoSec, fontSize: 9),
-                  ),
-                );
-              },
+    if (_selectedTimelineCycle == 'all') {
+      // Stacked bar: one bar per day, colored by cycle
+      final maxY = totalData.fold<int>(1, (m, e) => e.value > m ? e.value : m).toDouble();
+      return Column(
+        children: [
+          // Filter chips
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _timelineChip('all', '🌐 Todos'),
+                ..._cycles.map((c) => _timelineChip(c, _cycleEmoji(c))),
+              ],
             ),
           ),
-        ),
-        gridData: FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppTheme.card,
-            getTooltipItem: (g, _, __, ___) {
-              final day = days[g.x.toInt()];
-              final label = '${day.day}/${day.month}';
-              return BarTooltipItem(
-                '$label\n${g.barRods.first.toY.toInt()} stories',
-                const TextStyle(color: AppTheme.texto, fontSize: 11),
-              );
-            },
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 120,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxY < 1 ? 1 : maxY + 1,
+                barGroups: List.generate(days.length, (i) {
+                  final day = days[i];
+                  double cumulative = 0;
+                  final bars = <BarChartRodData>[];
+                  int colorIdx = 0;
+                  for (final cycle in _cycles) {
+                    final cycleData = byCycle[cycle] ?? [];
+                    final val = cycleData.where((e) =>
+                      e.key.year == day.year && e.key.month == day.month && e.key.day == day.day
+                    ).fold(0, (sum, e) => sum + e.value);
+                    if (val > 0) {
+                      bars.add(BarChartRodData(
+                        fromY: cumulative,
+                        toY: cumulative + val.toDouble(),
+                        width: 14,
+                        borderRadius: BorderRadius.vertical(
+                          top: colorIdx == bars.length - 1 ? const Radius.circular(4) : Radius.zero,
+                        ),
+                        color: (cycleColors[cycle] ?? AppTheme.textoSec).withValues(alpha: 0.85),
+                      ));
+                      cumulative += val.toDouble();
+                    }
+                    colorIdx++;
+                  }
+                  return BarChartGroupData(x: i, barRods: bars.isEmpty ? [
+                    BarChartRodData(toY: 0, width: 14, color: Colors.transparent),
+                  ] : bars);
+                }),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, _) {
+                        final labels = ['D-6','D-5','D-4','D-3','D-2','D-1','Hoje'];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(labels[v.toInt()], style: const TextStyle(color: AppTheme.textoSec, fontSize: 9)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => AppTheme.card,
+                    
+                  ),
+                ),
+              ),
+            ),
           ),
+        ],
+      );
+    } else {
+      // Line chart for selected cycle
+      final cycleData = byCycle[_selectedTimelineCycle] ?? [];
+      final spots = List.generate(days.length, (i) {
+        final day = days[i];
+        final val = cycleData.where((e) =>
+          e.key.year == day.year && e.key.month == day.month && e.key.day == day.day
+        ).fold(0, (sum, e) => sum + e.value);
+        return FlSpot(i.toDouble(), val.toDouble());
+      });
+      final maxY = spots.map((s) => s.y).fold<double>(1, (m, y) => y > m ? y : m);
+      return Column(
+        children: [
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _timelineChip('all', '🌐 Todos'),
+                ..._cycles.map((c) => _timelineChip(c, _cycleEmoji(c))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 100,
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: maxY < 1 ? 1 : maxY + 1,
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    curveSmoothness: 0.4,
+                    color: cycleColors[_selectedTimelineCycle] ?? AppTheme.primary,
+                    barWidth: 2.5,
+                    dotData: FlDotData(
+                      getDotPainter: (s, _, __, ___) => FlDotCirclePainter(
+                        radius: 3,
+                        color: cycleColors[_selectedTimelineCycle] ?? AppTheme.primary,
+                        strokeWidth: 0,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: (cycleColors[_selectedTimelineCycle] ?? AppTheme.primary).withValues(alpha: 0.15),
+                    ),
+                  ),
+                ],
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, _) {
+                        final labels = ['D-6','D-5','D-4','D-3','D-2','D-1','Hoje'];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(labels[v.toInt()], style: const TextStyle(color: AppTheme.textoSec, fontSize: 9)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => AppTheme.card,
+                    
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _timelineChip(String cycle, String label) {
+    final selected = _selectedTimelineCycle == cycle;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTimelineCycle = cycle),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : AppTheme.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: selected ? AppTheme.primary : AppTheme.surface),
+          ),
+          child: Text(label, style: TextStyle(
+            color: selected ? Colors.white : AppTheme.textoSec,
+            fontSize: 11,
+          )),
         ),
       ),
     );
+  }
+
+  String _cycleEmoji(String cycle) {
+    const map = {'conflito': '⚔️', 'economico': '📊', 'politico': '🏛️', 'social': '👥',
+      'tecnologico': '⚡', 'ambiental': '🌱', 'cultural': '🎭'};
+    return map[cycle] ?? '📰';
   }
 
   Widget _buildCycleLegend() {
