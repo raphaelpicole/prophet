@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
+import '../../data/models/source.dart';
 import '../../data/models/foreign_source.dart';
 import '../../data/services/api_service.dart';
 
@@ -20,8 +21,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   String _selectedSource = 'all';
   late TabController _tabController;
 
-  // source stats from API
-  Map<String, List<Story>> _sourceStories = {};
+  // ALL sources from database
+  List<Source> _allSources = [];
+  // Stories for source stats
   List<Story> _allStories = [];
   Map<String, int> _sourceArticleCount = {};
   Map<String, double> _sourceSentiment = {};
@@ -42,9 +44,15 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   Future<void> _loadData() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final stories = await _api.getStories(region: null, limit: 50);
+      final results = await Future.wait([
+        _api.getSources().catchError((_) => <Source>[]),
+        _api.getStories(region: null, limit: 50).catchError((_) => <Story>[]),
+      ]);
+      final sources = results[0] as List<Source>;
+      final stories = results[1] as List<Story>;
       if (mounted) {
         setState(() {
+          _allSources = sources;
           _allStories = stories;
           _buildSourceStats(stories);
           _loading = false;
@@ -57,7 +65,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
 
   void _buildSourceStats(List<Story> stories) {
     final counts = <String, int>{};
-    final sentiments = <String, double>{};
+    final sentimentTotals = <String, double>{};
+    final sentimentCounts = <String, int>{};
 
     for (final story in stories) {
       for (final article in story.previewArticles) {
@@ -66,21 +75,20 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
       }
     }
 
-    // Sentiment per source based on story sentiment_trend
-    final sourceSentimentTotals = <String, double>{};
-    final sourceSentimentCounts = <String, int>{};
     for (final story in stories) {
       for (final article in story.previewArticles) {
         final sid = article.sourceId;
         double sentVal = story.sentimentTrend == 'rising' ? 1.0
             : story.sentimentTrend == 'falling' ? -1.0 : 0.0;
-        sourceSentimentTotals[sid] = (sourceSentimentTotals[sid] ?? 0) + sentVal;
-        sourceSentimentCounts[sid] = (sourceSentimentCounts[sid] ?? 0) + 1;
+        sentimentTotals[sid] = (sentimentTotals[sid] ?? 0) + sentVal;
+        sentimentCounts[sid] = (sentimentCounts[sid] ?? 0) + 1;
       }
     }
-    for (final sid in sourceSentimentTotals.keys) {
-      final cnt = sourceSentimentCounts[sid] ?? 1;
-      sentiments[sid] = (sourceSentimentTotals[sid] ?? 0) / cnt;
+
+    final sentiments = <String, double>{};
+    for (final sid in sentimentTotals.keys) {
+      final cnt = sentimentCounts[sid] ?? 1;
+      sentiments[sid] = (sentimentTotals[sid] ?? 0) / cnt;
     }
 
     setState(() {
@@ -89,24 +97,38 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     });
   }
 
-  // All sources seen in articles
+  // All sources from DB + articles per source
   List<_SourceStat> get _sourceStats {
     final map = <String, _SourceStat>{};
+
+    // Start with ALL sources from the database
+    for (final src in _allSources) {
+      map[src.id] = _SourceStat(
+        sourceId: src.id,
+        name: src.name,
+        slug: src.slug,
+        ideology: src.ideology,
+        articles: [],
+        articleCount: 0,
+      );
+    }
+
+    // Merge article data from stories
     for (final story in _allStories) {
       for (final article in story.previewArticles) {
-        final sid = article.sourceId;
-        if (!map.containsKey(sid)) {
-          map[sid] = _SourceStat(
-            sourceId: sid,
-            name: _sourceName(sid),
-            articles: [],
-          );
+        if (map.containsKey(article.sourceId)) {
+          map[article.sourceId]!.articles.add(story);
         }
-        map[sid]!.articles.add(story);
       }
     }
+
+    // Finalize article counts
+    for (final stat in map.values) {
+      stat.articleCount = stat.articles.length;
+    }
+
     final list = map.values.toList();
-    list.sort((a, b) => b.articles.length.compareTo(a.articles.length));
+    list.sort((a, b) => b.articleCount.compareTo(a.articleCount));
     return list;
   }
 
@@ -117,13 +139,15 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     ).toList();
   }
 
-  String _sourceName(String id) {
-    const names = {
+  String _sourceLabel(Source s) {
+    final names = {
       'g1': 'G1', 'folha': 'Folha', 'uol': 'UOL', 'estadao': 'Estadão',
       'oglobo': 'O Globo', 'bbc': 'BBC', 'cnn': 'CNN', 'metropoles': 'Metrópolis',
-      'icl': 'ICL', 'reuters': 'Reuters', 'f9d8cfb1-c368-48d5-9f35-2a7157cee8b3': 'G1 (ap)',
+      'icl': 'ICL', 'reuters': 'Reuters', 'aljazeera': 'Al Jazeera',
+      'france24': 'France 24', 'dw': 'DW', 'rte': 'RTÉ', 'nbc': 'NBC',
+      'ap': 'AP News',
     };
-    return names[id] ?? id.toUpperCase();
+    return names[s.slug] ?? s.name;
   }
 
   @override
@@ -184,14 +208,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             ],
           ),
           const SizedBox(height: 12),
-          // KPI row
           Row(
             children: [
               _kpiCard('📰', '$totalArticles', 'Artigos'),
               const SizedBox(width: 8),
               _kpiCard('📌', '$totalStories', 'Stories'),
               const SizedBox(width: 8),
-              _kpiCard('🌐', '${_sourceStats.length}', 'Fontes'),
+              _kpiCard('🌐', '${_allSources.length}', 'Fontes'),
             ],
           ),
         ],
@@ -229,20 +252,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Bias spectrum bar
         _biasSpectrumBar(),
         const SizedBox(height: 20),
 
-        // Source ranking
         const Text('🏆 Ranking por Volume', style: TextStyle(
           color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
         )),
         const SizedBox(height: 8),
-        ..._sourceStats.take(15).map((s) => _sourceRankCard(s)),
+        ..._sourceStats.take(16).map((s) => _sourceRankCard(s)),
 
         const SizedBox(height: 20),
 
-        // Sentiment by source
         const Text('😊 Sentimento Médio por Fonte', style: TextStyle(
           color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
         )),
@@ -251,7 +271,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
 
         const SizedBox(height: 20),
 
-        // Foreign media
         const Text('🌍 Mídia Estrangeira', style: TextStyle(
           color: AppTheme.texto, fontSize: 14, fontWeight: FontWeight.w600,
         )),
@@ -277,30 +296,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
           )),
           const SizedBox(height: 12),
-          // Gradient bar with labels
-          Column(
+          Container(
+            height: 12,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [
+                Color(0xFF4CAF50), Color(0xFF8BC34A),
+                Color(0xFF9E9E9E), Color(0xFFFF9800), Color(0xFFF44336),
+              ]),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                height: 12,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [
-                    Color(0xFF4CAF50), Color(0xFF8BC34A),
-                    Color(0xFF9E9E9E), Color(0xFFFF9800), Color(0xFFF44336),
-                  ]),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _biasLabel('⬅️ Esq.', const Color(0xFF4CAF50)),
-                  _biasLabel('Centro-Esq.', const Color(0xFF8BC34A)),
-                  _biasLabel('Centro', const Color(0xFF9E9E9E)),
-                  _biasLabel('Centro-Dir.', const Color(0xFFFF9800)),
-                  _biasLabel('Dir. ➡️', const Color(0xFFF44336)),
-                ],
-              ),
+              _biasLabel('⬅️ Esq.', const Color(0xFF4CAF50)),
+              _biasLabel('Centro-Esq.', const Color(0xFF8BC34A)),
+              _biasLabel('Centro', const Color(0xFF9E9E9E)),
+              _biasLabel('Centro-Dir.', const Color(0xFFFF9800)),
+              _biasLabel('Dir. ➡️', const Color(0xFFF44336)),
             ],
           ),
           const SizedBox(height: 8),
@@ -325,10 +339,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   }
 
   Widget _sourceRankCard(_SourceStat s) {
-    final count = s.articles.length;
+    final count = s.articleCount;
     final sentiment = _sourceSentiment[s.sourceId] ?? 0;
-    final maxCount = _sourceStats.isNotEmpty ? _sourceStats.first.articles.length : 1;
-    final barWidth = count / maxCount;
+    final maxCount = _sourceStats.isNotEmpty && _sourceStats.first.articleCount > 0
+        ? _sourceStats.first.articleCount : 1;
+    final barWidth = maxCount > 0 ? (count / maxCount).clamp(0.0, 1.0) : 0.0;
 
     return GestureDetector(
       onTap: () => _showSourceDetail(s),
@@ -339,50 +354,59 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
           color: AppTheme.card,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: Text(_sourceName(s.sourceId), style: const TextStyle(
-                    color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
-                  )),
-                ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      FractionallySizedBox(
-                        widthFactor: barWidth.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('$count', style: const TextStyle(
-                  color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold,
-                )),
-                const SizedBox(width: 4),
-                Text('arts', style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
-                const SizedBox(width: 8),
-                _sentimentIcon(sentiment),
-              ],
+            SizedBox(
+              width: 90,
+              child: Text(s.name, style: const TextStyle(
+                color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+              )),
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Stack(
+                children: [
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: barWidth,
+                    child: Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: count > 0 ? AppTheme.primary : AppTheme.surface,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: count > 0
+                    ? AppTheme.primary.withValues(alpha: 0.15)
+                    : AppTheme.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: count > 0 ? AppTheme.primary : AppTheme.textoSec,
+                  fontSize: 12, fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            _sentimentIcon(sentiment),
+            const SizedBox(width: 4),
+            Icon(_biasIcon(s.ideology), color: _biasColor(s.ideology), size: 12),
           ],
         ),
       ),
@@ -396,8 +420,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   }
 
   Widget _sentimentChart() {
-    final stats = _sourceStats.take(8).toList();
-    if (stats.isEmpty) return const SizedBox.shrink();
+    final stats = _sourceStats.where((s) => s.articleCount > 0).take(8).toList();
+    if (stats.isEmpty) return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text('Nenhum dado de sentimento disponível',
+          style: TextStyle(color: AppTheme.textoSec, fontSize: 12)),
+    );
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -424,7 +456,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
                       return Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          _sourceName(stats[idx].sourceId).substring(0, 3),
+                          stats[idx].name.substring(0, stats[idx].name.length.clamp(0, 3)),
                           style: const TextStyle(color: AppTheme.textoSec, fontSize: 9),
                         ),
                       );
@@ -452,8 +484,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
               show: true,
               horizontalInterval: 1,
               getDrawingHorizontalLine: (value) => FlLine(
-                color: AppTheme.surface,
-                strokeWidth: 0.5,
+                color: AppTheme.surface, strokeWidth: 0.5,
               ),
               drawVerticalLine: false,
             ),
@@ -484,15 +515,15 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   Widget _buildRadarTab() {
     return Column(
       children: [
-        // Source filter chips
         SizedBox(
           height: 44,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             children: [
-              _filterChip('all', '🌐 Todas'),
-              ..._sourceStats.map((s) => _filterChip(s.sourceId, _sourceName(s.sourceId))),
+              _filterChip('all', '🌐 Todas ${_allStories.length}'),
+              ..._sourceStats.where((s) => s.articleCount > 0).take(10)
+                  .map((s) => _filterChip(s.sourceId, '${s.name} (${s.articleCount})')),
             ],
           ),
         ),
@@ -533,7 +564,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   }
 
   Widget _radarStoryItem(Story story) {
-    // Show which sources covered this story
     final sourceIds = story.previewArticles.map((a) => a.sourceId).toSet();
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -559,36 +589,36 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
           ), maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
-          // Sources that covered this story
           Wrap(
             spacing: 4,
             runSpacing: 4,
-            children: sourceIds.map((sid) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(_sourceName(sid), style: const TextStyle(
-                color: AppTheme.primary, fontSize: 9, fontWeight: FontWeight.w600,
-              )),
-            )).toList(),
+            children: sourceIds.map((sid) {
+              final src = _sourceStats.where((s) => s.sourceId == sid).firstOrNull;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(src?.name ?? sid, style: const TextStyle(
+                  color: AppTheme.primary, fontSize: 9, fontWeight: FontWeight.w600,
+                )),
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _cycleBadge(String cycle) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: _cycleColor(cycle).withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(_cycleEmoji(cycle), style: const TextStyle(fontSize: 10)),
-    );
-  }
+  Widget _cycleBadge(String cycle) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: _cycleColor(cycle).withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(_cycleEmoji(cycle), style: const TextStyle(fontSize: 10)),
+  );
 
   Color _cycleColor(String cycle) {
     const colors = {
@@ -626,9 +656,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   }
 
   Widget _sourceDetailSheet(_SourceStat s, ScrollController controller) {
-    final count = s.articles.length;
     final sentiment = _sourceSentiment[s.sourceId] ?? 0;
-    // Topics covered
     final topics = <String, int>{};
     for (final story in s.articles) {
       topics[story.cycle] = (topics[story.cycle] ?? 0) + 1;
@@ -641,7 +669,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
       child: ListView(
         controller: controller,
         children: [
-          // Handle bar
           Center(
             child: Container(
               width: 40, height: 4,
@@ -651,7 +678,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             ),
           ),
           const SizedBox(height: 16),
-          // Source name header
           Row(
             children: [
               Container(
@@ -667,10 +693,10 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_sourceName(s.sourceId), style: const TextStyle(
+                    Text(s.name, style: const TextStyle(
                       color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
                     )),
-                    Text('$count artigos nas últimas stories', style: const TextStyle(
+                    Text('${s.articleCount} artigos nas últimas stories', style: const TextStyle(
                       color: AppTheme.textoSec, fontSize: 12,
                     )),
                   ],
@@ -679,11 +705,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  color: _biasColor(s.ideology).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(_sourceSentimentLabel(sentiment), style: const TextStyle(
-                  color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.w600,
+                child: Text(_ideologyLabel(s.ideology), style: TextStyle(
+                  color: _biasColor(s.ideology), fontSize: 11, fontWeight: FontWeight.w600,
                 )),
               ),
             ],
@@ -729,10 +755,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
                       color: _sentimentColor(sentiment).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      _sentimentDesc(sentiment),
-                      style: TextStyle(color: _sentimentColor(sentiment), fontSize: 12),
-                    ),
+                    child: Text(_sentimentDesc(sentiment), style: TextStyle(
+                      color: _sentimentColor(sentiment), fontSize: 12,
+                    )),
                   ),
                 ),
               ],
@@ -740,7 +765,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 12),
 
-          // Topics covered
+          // Ideology
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -750,47 +775,110 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('🏷️ Ciclos Cobertos', style: TextStyle(
+                const Text('⚖️ Posicionamento Editorial', style: TextStyle(
                   color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
                 )),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: topTopics.map((e) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                Row(
+                  children: [
+                    const Text('⬅️', style: TextStyle(fontSize: 16)),
+                    Expanded(
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [
+                            Color(0xFF4CAF50), Color(0xFF8BC34A),
+                            Color(0xFF9E9E9E), Color(0xFFFF9800), Color(0xFFF44336),
+                          ]),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const Text('➡️', style: TextStyle(fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _cycleColor(e.key).withValues(alpha: 0.15),
+                      color: _biasColor(s.ideology).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_cycleEmoji(e.key), style: const TextStyle(fontSize: 12)),
-                        const SizedBox(width: 4),
-                        Text('${e.value}', style: TextStyle(
-                          color: _cycleColor(e.key), fontSize: 12, fontWeight: FontWeight.bold,
-                        )),
-                      ],
-                    ),
-                  )).toList(),
+                    child: Text(_ideologyLabel(s.ideology), style: TextStyle(
+                      color: _biasColor(s.ideology), fontSize: 12, fontWeight: FontWeight.w600,
+                    )),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
 
-          // Articles from this source
+          // Topics covered
+          if (topTopics.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('🏷️ Ciclos Cobertos', style: TextStyle(
+                    color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
+                  )),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: topTopics.map((e) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _cycleColor(e.key).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_cycleEmoji(e.key), style: const TextStyle(fontSize: 12)),
+                          const SizedBox(width: 4),
+                          Text('${e.value}', style: TextStyle(
+                            color: _cycleColor(e.key), fontSize: 12, fontWeight: FontWeight.bold,
+                          )),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Articles
           const Text('📰 Artigos Recentes', style: TextStyle(
             color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w600,
           )),
           const SizedBox(height: 8),
-          ...s.articles.take(20).map((story) {
-            final article = story.previewArticles.firstWhere(
-              (a) => a.sourceId == s.sourceId, orElse: () => story.previewArticles.first,
-            );
-            return _detailArticleItem(story, article);
-          }),
+          if (s.articles.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Nenhum artigo encontrado para esta fonte nas últimas stories.',
+                  style: TextStyle(color: AppTheme.textoSec, fontSize: 12)),
+            )
+          else
+            ...s.articles.take(20).map((story) {
+              final article = story.previewArticles.firstWhere(
+                (a) => a.sourceId == s.sourceId, orElse: () => story.previewArticles.first,
+              );
+              return _detailArticleItem(story, article);
+            }),
 
           const SizedBox(height: 40),
         ],
@@ -901,10 +989,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     return '😐';
   }
 
-  String _sourceSentimentLabel(double s) {
-    if (s > 0.3) return 'Positivo';
-    if (s < -0.3) return 'Negativo';
-    return 'Neutro';
+  String _ideologyLabel(String ideology) {
+    switch (ideology) {
+      case 'esquerda': return 'Esquerda';
+      case 'centro-esquerda': return 'Centro-Esq.';
+      case 'centro': return 'Centro';
+      case 'centro-direita': return 'Centro-Dir.';
+      case 'direita': return 'Direita';
+      case 'indefinido': return 'Indefinido';
+      default: return ideology;
+    }
   }
 
   String _sentimentDesc(double s) {
@@ -920,11 +1014,43 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     if (s < -0.2) return Colors.red;
     return Colors.grey;
   }
+
+  Color _biasColor(String ideology) {
+    switch (ideology) {
+      case 'esquerda': return const Color(0xFF4CAF50);
+      case 'centro-esquerda': return const Color(0xFF8BC34A);
+      case 'centro': return const Color(0xFF9E9E9E);
+      case 'centro-direita': return const Color(0xFFFF9800);
+      case 'direita': return const Color(0xFFF44336);
+      default: return AppTheme.textoSec;
+    }
+  }
+
+  IconData _biasIcon(String ideology) {
+    switch (ideology) {
+      case 'esquerda': return Icons.arrow_back;
+      case 'centro-esquerda': return Icons.arrow_back;
+      case 'centro': return Icons.remove;
+      case 'centro-direita': return Icons.arrow_forward;
+      case 'direita': return Icons.arrow_forward;
+      default: return Icons.help_outline;
+    }
+  }
 }
 
 class _SourceStat {
   final String sourceId;
   final String name;
+  final String slug;
+  final String ideology;
   final List<Story> articles;
-  _SourceStat({required this.sourceId, required this.name, required this.articles});
+  int articleCount;
+  _SourceStat({
+    required this.sourceId,
+    required this.name,
+    required this.slug,
+    required this.ideology,
+    required this.articles,
+    required this.articleCount,
+  });
 }
