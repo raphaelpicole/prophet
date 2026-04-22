@@ -6,9 +6,14 @@ import '../../data/models/story.dart';
 import '../../data/models/source.dart';
 import '../../data/models/foreign_source.dart';
 import '../../data/services/api_service.dart';
+import '../../data/services/auth_service.dart';
+import '../widgets/pro_banner.dart';
 
 class AnalysisScreen extends StatefulWidget {
-  const AnalysisScreen({super.key});
+  final AuthService authService;
+  final void Function(BuildContext context) onOpenPaywall;
+
+  const AnalysisScreen({super.key, required this.authService, required this.onOpenPaywall});
 
   @override
   State<AnalysisScreen> createState() => _AnalysisScreenState();
@@ -160,6 +165,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             : Column(
                 children: [
                   _buildHeader(),
+
+                  // ProBanner (only for free users)
+                  if (widget.authService.plan == 'free')
+                    ProBanner(
+                      message: '⭐ Proton Pro — R\$27/mês',
+                      onUpgrade: () => widget.onOpenPaywall(context),
+                    ),
+
                   TabBar(
                     controller: _tabController,
                     indicatorColor: AppTheme.primary,

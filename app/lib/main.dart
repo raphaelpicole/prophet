@@ -8,14 +8,53 @@ import 'presentation/screens/config_screen.dart';
 import 'presentation/screens/admin_screen.dart';
 import 'presentation/screens/story_detail_screen.dart';
 import 'presentation/screens/article_detail_screen.dart';
+import 'presentation/screens/login_screen.dart';
+import 'presentation/screens/profile_screen.dart';
+import 'presentation/screens/paywall_screen.dart';
 import 'data/models/story.dart';
+import 'data/services/auth_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProphetApp());
 }
 
-class ProphetApp extends StatelessWidget {
+class ProphetApp extends StatefulWidget {
   const ProphetApp({super.key});
+
+  @override
+  State<ProphetApp> createState() => _ProphetAppState();
+}
+
+class _ProphetAppState extends State<ProphetApp> {
+  final AuthService _authService = AuthService();
+  bool _initialized = false;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAuth();
+  }
+
+  Future<void> _initAuth() async {
+    await _authService.init();
+    setState(() {
+      _initialized = true;
+      _isLoggedIn = _authService.isLoggedIn;
+    });
+  }
+
+  void _onLoginSuccess(AuthService auth) {
+    setState(() => _isLoggedIn = true);
+  }
+
+  void _openPaywall(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PaywallScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,16 +82,46 @@ class ProphetApp extends StatelessWidget {
           );
         }
         return MaterialPageRoute(
-          builder: (_) => const MainShell(),
+          builder: (_) => _buildMainShell(),
         );
       },
-      home: const MainShell(),
+      home: _buildMainShell(),
+    );
+  }
+
+  Widget _buildMainShell() {
+    if (!_initialized) {
+      return Scaffold(
+        backgroundColor: AppTheme.bg,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppTheme.primary),
+        ),
+      );
+    }
+
+    if (!_isLoggedIn) {
+      return LoginScreen(
+        authService: _authService,
+        onLoginSuccess: _onLoginSuccess,
+      );
+    }
+
+    return MainShell(
+      authService: _authService,
+      onOpenPaywall: _openPaywall,
     );
   }
 }
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final AuthService authService;
+  final void Function(BuildContext context) onOpenPaywall;
+
+  const MainShell({
+    super.key,
+    required this.authService,
+    required this.onOpenPaywall,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -61,14 +130,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  // Release: Radar, Analysis, Prophet (Map disabled)
-  final _releaseScreens = const [RadarScreen(), AnalysisScreen(), ProphetScreen()];
-  final _releaseLabels = ['Radar', 'Análise', 'Profeta'];
-
-  // Dev: adds Config and Admin
-  final _devScreens = const [RadarScreen(), AnalysisScreen(), ProphetScreen(), ConfigScreen(), AdminScreen()];
-  final _devLabels = ['Radar', 'Análise', 'Profeta', 'Config', 'Admin'];
-
   @override
   void initState() {
     super.initState();
@@ -76,19 +137,40 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _checkDevParam() {
-    // ?dev opens Admin tab directly
     final uri = Uri.base;
     if (uri.queryParameters.containsKey('dev')) {
       setState(() => _currentIndex = 4);
     }
   }
 
+  List<Widget> _releaseScreens(BuildContext context) => [
+    RadarScreen(authService: widget.authService, onOpenPaywall: widget.onOpenPaywall),
+    AnalysisScreen(authService: widget.authService, onOpenPaywall: widget.onOpenPaywall),
+    const ProphetScreen(),
+    ProfileScreen(
+      authService: widget.authService,
+      onUpgrade: () => widget.onOpenPaywall(context),
+    ),
+  ];
+
+  List<String> get _releaseLabels => ['Radar', 'Análise', 'Profeta', 'Perfil'];
+
+  List<Widget> get _devScreens => [
+    RadarScreen(authService: widget.authService, onOpenPaywall: widget.onOpenPaywall),
+    AnalysisScreen(authService: widget.authService, onOpenPaywall: widget.onOpenPaywall),
+    const ProphetScreen(),
+    const ConfigScreen(),
+    const AdminScreen(),
+  ];
+
+  List<String> get _devLabels => ['Radar', 'Análise', 'Profeta', 'Config', 'Admin'];
+
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 800;
     final isRelease = kReleaseMode;
 
-    final screens = isRelease ? _releaseScreens : _devScreens;
+    final screens = isRelease ? _releaseScreens(context) : _devScreens;
     final labels = isRelease ? _releaseLabels : _devLabels;
 
     return Scaffold(
@@ -108,8 +190,14 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildSideNav({required List<Widget> screens, required List<String> labels}) {
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
-    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.settings, Icons.admin_panel_settings];
+    final icons = [
+      Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined,
+      Icons.settings_outlined, Icons.admin_panel_settings_outlined,
+    ];
+    final activeIcons = [
+      Icons.radar, Icons.analytics, Icons.auto_awesome,
+      Icons.settings, Icons.admin_panel_settings,
+    ];
 
     return Container(
       width: 80,
@@ -185,8 +273,14 @@ class _MainShellState extends State<MainShell> {
 
   Widget _bottomNavItem(int i, List<String> labels) {
     final isSelected = _currentIndex == i;
-    final icons = [Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined, Icons.settings_outlined, Icons.admin_panel_settings_outlined];
-    final activeIcons = [Icons.radar, Icons.analytics, Icons.auto_awesome, Icons.settings, Icons.admin_panel_settings];
+    final icons = [
+      Icons.radar, Icons.analytics_outlined, Icons.auto_awesome_outlined,
+      Icons.settings_outlined, Icons.admin_panel_settings_outlined,
+    ];
+    final activeIcons = [
+      Icons.radar, Icons.analytics, Icons.auto_awesome,
+      Icons.settings, Icons.admin_panel_settings,
+    ];
 
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = i),

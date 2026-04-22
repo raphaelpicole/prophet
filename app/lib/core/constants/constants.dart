@@ -16,3 +16,17 @@ class AppConstants {
     'social', 'tecnologico', 'ambiental', 'cultural',
   ];
 }
+
+class PlanConfig {
+  static const Map<String, dynamic> FREE_LIMITS = {
+    'stories_per_day': 10,
+    'predictions_per_week': 3,
+    'history_days': 7,
+  };
+
+  static const Map<String, dynamic> PRO_LIMITS = {
+    'stories_per_day': null, // unlimited
+    'predictions_per_week': null, // unlimited
+    'history_days': 365,
+  };
+}

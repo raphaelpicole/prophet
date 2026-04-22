@@ -4,12 +4,17 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 import '../../data/models/indicator.dart';
 import '../../data/services/api_service.dart';
+import '../../data/services/auth_service.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/story_card.dart';
 import '../widgets/cycle_donut.dart';
+import '../widgets/pro_banner.dart';
 
 class RadarScreen extends StatefulWidget {
-  const RadarScreen({super.key});
+  final AuthService authService;
+  final void Function(BuildContext context) onOpenPaywall;
+
+  const RadarScreen({super.key, required this.authService, required this.onOpenPaywall});
 
   @override
   State<RadarScreen> createState() => _RadarScreenState();
@@ -169,6 +174,15 @@ class _RadarScreenState extends State<RadarScreen> {
                   ),
                 ),
               ),
+
+              // ProBanner (only for free users)
+              if (widget.authService.plan == 'free')
+                SliverToBoxAdapter(
+                  child: ProBanner(
+                    message: '⭐ Proton Pro — R\$27/mês',
+                    onUpgrade: () => widget.onOpenPaywall(context),
+                  ),
+                ),
 
               // Search + Filter row
               SliverToBoxAdapter(
