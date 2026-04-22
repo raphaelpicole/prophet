@@ -5,6 +5,7 @@
   "outputDirectory": "app/build/web",
   "routes": [
     { "src": "/api/cron/collect", "dest": "/api/collect.js" },
+    { "src": "/api/cron/maintenance", "dest": "/api/cron/maintenance.js" },
     { "src": "/api/collect", "dest": "/api/collect.js" },
     { "src": "/api/regions", "dest": "/api/misc.js" },
     { "src": "/api/sources", "dest": "/api/misc.js" },
@@ -18,5 +19,8 @@
   "crons": [{
     "path": "/api/cron/collect",
     "schedule": "0 11 * * *"
+  }, {
+    "path": "/api/cron/maintenance",
+    "schedule": "0 10 * * 0"
   }]
 }
