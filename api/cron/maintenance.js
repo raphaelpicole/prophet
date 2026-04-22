@@ -26,10 +26,11 @@ export default async function handler(req, res) {
 
   try {
     // ── 1. Delete test predictions ─────────────────────────────────
-    const testPreds = await fetch(
+    const testPredsRaw = await fetch(
       `${SUPABASE_URL}/rest/v1/predictions?id=in.(26c1fa67,1f5cacc6,01db85fb)`,
       { headers }
     ).then(r => r.json()).catch(() => []);
+    const testPreds = Array.isArray(testPredsRaw) ? testPredsRaw : [];
 
     for (const p of testPreds) {
       await fetch(`${SUPABASE_URL}/rest/v1/predictions?id=eq.${p.id}`, {
@@ -40,14 +41,15 @@ export default async function handler(req, res) {
     }
 
     // Also clean predictions with description containing only "test" or "Teste"
-    const allPreds = await fetch(
+    const allPredsRaw = await fetch(
       `${SUPABASE_URL}/rest/v1/predictions?select=id,description`,
       { headers }
     ).then(r => r.json()).catch(() => []);
+    const allPreds = Array.isArray(allPredsRaw) ? allPredsRaw : [];
 
     for (const p of allPreds) {
       const desc = (p.description || '').toLowerCase().trim();
-      if (desc === 'test' || desc === 'teste' || desc === '{"evento":"Teste"}') {
+      if (desc === 'test' || desc === 'teste' || desc === '{"evento":"teste"}') {
         await fetch(`${SUPABASE_URL}/rest/v1/predictions?id=eq.${p.id}`, {
           method: 'DELETE',
           headers,
