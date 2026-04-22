@@ -111,7 +111,7 @@ export default async function handler(req, res) {
           fetch(`${SUPABASE_URL}/rest/v1/sources`, { headers }).then(r => r.json()).catch(() => []),
           fetch(`${SUPABASE_URL}/rest/v1/raw_articles?analyzed=eq.false&limit=1&offset=0`, { headers })
             .then(r => r.headers.get('content-range')?.split('/')[1] ?? '0').catch(() => '0'),
-          fetch(`${SUPABASE_URL}/rest/v1/logs?order=created_at.desc&limit=5`, { headers }).then(r => r.json()).catch(() => []),
+          fetch(`${SUPABASE_URL}/rest/v1/logs?order=requested_at.desc&limit=5`, { headers }).then(r => r.json()).catch(() => []),
         ]);
         return res.status(200).json({
           success: true, action,
@@ -135,7 +135,7 @@ export default async function handler(req, res) {
       }
       const offset = parseInt(req.query.offset) || 0;
       const limit = parseInt(req.query.limit) || 20;
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=${limit}&offset=${offset}&order=created_at.desc`, { headers });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=${limit}&offset=${offset}&order=requested_at.desc`, { headers });
       const data = await r.json();
       const count = r.headers.get('content-range')?.split('/')[1] ?? data.length;
       return res.status(200).json({ table, data, count, offset, limit });
