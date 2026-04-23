@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
@@ -9,6 +10,7 @@ import '../widgets/kpi_card.dart';
 import '../widgets/story_card.dart';
 import '../widgets/cycle_donut.dart';
 import '../widgets/pro_banner.dart';
+import '../widgets/shimmer_loading.dart';
 
 class RadarScreen extends StatefulWidget {
   final AuthService authService;
@@ -20,9 +22,10 @@ class RadarScreen extends StatefulWidget {
   State<RadarScreen> createState() => _RadarScreenState();
 }
 
-class _RadarScreenState extends State<RadarScreen> {
+class _RadarScreenState extends State<RadarScreen>
+    with TickerProviderStateMixin {
   final ApiService _api = ApiService();
-  
+
   List<Story> _stories = [];
   Indicator? _indicator;
   bool _loading = true;
@@ -31,6 +34,7 @@ class _RadarScreenState extends State<RadarScreen> {
   String? _selectedRegion;
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  late AnimationController _staggerController;
 
   static const _cycles = [
     'conflito', 'economico', 'politico',
@@ -40,12 +44,23 @@ class _RadarScreenState extends State<RadarScreen> {
   @override
   void initState() {
     super.initState();
+    _staggerController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _staggerController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() { _loading = true; _error = null; });
-    
+
     try {
       final results = await Future.wait([
         _api.getStories(cycle: _selectedCycle, region: _selectedRegion, search: _searchQuery, limit: 100).catchError((_) => <Story>[]),
@@ -57,6 +72,8 @@ class _RadarScreenState extends State<RadarScreen> {
         _indicator = results[1] as Indicator?;
         _loading = false;
       });
+
+      _staggerController.forward(from: 0);
     } catch (e) {
       setState(() {
         _stories = [];
@@ -126,8 +143,16 @@ class _RadarScreenState extends State<RadarScreen> {
     if (_loading) {
       return Scaffold(
         backgroundColor: AppTheme.bg,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppTheme.primary),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildShimmerHeader(),
+              const SizedBox(height: 16),
+              _buildShimmerKpis(),
+              const SizedBox(height: 16),
+              Expanded(child: _buildShimmerList()),
+            ],
+          ),
         ),
       );
     }
@@ -145,41 +170,16 @@ class _RadarScreenState extends State<RadarScreen> {
           color: AppTheme.primary,
           child: CustomScrollView(
             slivers: [
-              // AppBar
+              // Glassmorphism AppBar
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.visibility, color: AppTheme.primary, size: 24),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '🔮 Prophet',
-                        style: TextStyle(
-                          color: AppTheme.texto,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.refresh, color: AppTheme.textoSec),
-                        onPressed: _loadData,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.person_outline, color: AppTheme.textoSec),
-                        onPressed: () {},
-                      ),
-                    ],
-                  ),
-                ),
+                child: _buildGlassHeader(),
               ),
 
               // ProBanner (only for free users)
               if (widget.authService.plan == 'free')
                 SliverToBoxAdapter(
                   child: ProBanner(
-                    message: '⭐ Proton Pro — R\$27/mês',
+                    message: 'Proton Pro — R\$27/mês',
                     onUpgrade: () => widget.onOpenPaywall(context),
                   ),
                 ),
@@ -249,16 +249,16 @@ class _RadarScreenState extends State<RadarScreen> {
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: [
-                                  _regionChip('🌐', 'ALL', 'Todos', _selectedRegion == null, () => _setRegion(null)),
-                                  _regionChip('🌎', 'SAM', 'SAM', _selectedRegion == 'SAM', () => _setRegion('SAM')),
-                                  _regionChip('🇧🇷', 'BR', 'BR', _selectedRegion == 'BR', () => _setRegion('BR')),
-                                  _regionChip('🇺🇸', 'US', 'US', _selectedRegion == 'US', () => _setRegion('US')),
-                                  _regionChip('🇪🇺', 'EU', 'EU', _selectedRegion == 'EU', () => _setRegion('EU')),
-                                  _regionChip('🇨🇳', 'CN', 'CN', _selectedRegion == 'CN', () => _setRegion('CN')),
-                                  _regionChip('🇷🇺', 'RU', 'RU', _selectedRegion == 'RU', () => _setRegion('RU')),
-                                  _regionChip('🌙', 'ME', 'ME', _selectedRegion == 'ME', () => _setRegion('ME')),
-                                  _regionChip('🌍', 'AF', 'AF', _selectedRegion == 'AF', () => _setRegion('AF')),
-                                  _regionChip('🌏', 'AS', 'AS', _selectedRegion == 'AS', () => _setRegion('AS')),
+                                  _regionChip(Icons.public, 'ALL', 'Todos', _selectedRegion == null, () => _setRegion(null)),
+                                  _regionChip(Icons.south_america, 'SAM', 'SAM', _selectedRegion == 'SAM', () => _setRegion('SAM')),
+                                  _regionChip(Icons.location_on, 'BR', 'BR', _selectedRegion == 'BR', () => _setRegion('BR')),
+                                  _regionChip(Icons.location_city, 'US', 'US', _selectedRegion == 'US', () => _setRegion('US')),
+                                  _regionChip(Icons.location_city, 'EU', 'EU', _selectedRegion == 'EU', () => _setRegion('EU')),
+                                  _regionChip(Icons.location_city, 'CN', 'CN', _selectedRegion == 'CN', () => _setRegion('CN')),
+                                  _regionChip(Icons.location_city, 'RU', 'RU', _selectedRegion == 'RU', () => _setRegion('RU')),
+                                  _regionChip(Icons.location_on, 'ME', 'ME', _selectedRegion == 'ME', () => _setRegion('ME')),
+                                  _regionChip(Icons.location_on, 'AF', 'AF', _selectedRegion == 'AF', () => _setRegion('AF')),
+                                  _regionChip(Icons.location_on, 'AS', 'AS', _selectedRegion == 'AS', () => _setRegion('AS')),
                                 ],
                               ),
                             ),
@@ -352,10 +352,21 @@ class _RadarScreenState extends State<RadarScreen> {
                         collapsedIconColor: AppTheme.textoSec,
                         title: Row(
                           children: [
-                            const Icon(Icons.show_chart, color: AppTheme.primary, size: 16),
-                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.show_chart,
+                                color: AppTheme.primary,
+                                size: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             const Text(
-                              '📊 Timeline — Últimos 7 dias',
+                              'Timeline — Últimos 7 dias',
                               style: TextStyle(
                                 color: AppTheme.texto,
                                 fontSize: 14,
@@ -411,10 +422,21 @@ class _RadarScreenState extends State<RadarScreen> {
                       // Top Cycles row
                       Row(
                         children: [
-                          const Icon(Icons.trending_up, color: Colors.orange, size: 16),
-                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.trending_up,
+                              color: Colors.orange,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           const Text(
-                            '🏆 Top Ciclos',
+                            'Top Ciclos',
                             style: TextStyle(
                               color: AppTheme.texto,
                               fontSize: 14,
@@ -430,10 +452,21 @@ class _RadarScreenState extends State<RadarScreen> {
                       // Rising stories
                       Row(
                         children: [
-                          const Icon(Icons.bolt, color: AppTheme.primary, size: 16),
-                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bolt,
+                              color: AppTheme.primary,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           const Text(
-                            '⚡ Novas Stories (últimas 6h)',
+                            'Novas Stories (últimas 6h)',
                             style: TextStyle(
                               color: AppTheme.texto,
                               fontSize: 14,
@@ -481,10 +514,21 @@ class _RadarScreenState extends State<RadarScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
-                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.local_fire_department,
+                          color: Colors.orange,
+                          size: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       const Text(
-                        '🔥 Histórias Quentes',
+                        'Histórias Quentes',
                         style: TextStyle(
                           color: AppTheme.texto,
                           fontSize: 14,
@@ -498,7 +542,7 @@ class _RadarScreenState extends State<RadarScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-              // Story list
+              // Story list with staggered animation
               _stories.isEmpty
                   ? SliverToBoxAdapter(
                       child: Padding(
@@ -524,12 +568,7 @@ class _RadarScreenState extends State<RadarScreen> {
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             final story = _stories[index];
-                            return StoryCard(
-                              story: story,
-                              onTap: () {
-                                Navigator.pushNamed(context, '/story', arguments: story);
-                              },
-                            );
+                            return _staggeredStoryCard(story, index);
                           },
                           childCount: _stories.length,
                         ),
@@ -562,6 +601,185 @@ class _RadarScreenState extends State<RadarScreen> {
   }
 
   // ────────────────────────────────────────────────────────────────
+  // Glassmorphism Header
+  // ────────────────────────────────────────────────────────────────
+  Widget _buildGlassHeader() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.card.withValues(alpha: 0.7),
+            AppTheme.card.withValues(alpha: 0.4),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.texto.withValues(alpha: 0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.visibility,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Prophet',
+                    style: TextStyle(
+                      color: AppTheme.texto,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  Text(
+                    'Radar de Eventos Globais',
+                    style: TextStyle(
+                      color: AppTheme.textoSec.withValues(alpha: 0.8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  _glassIconButton(Icons.refresh, _loadData),
+                  const SizedBox(width: 8),
+                  _glassIconButton(Icons.person_outline, () {}),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _glassIconButton(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppTheme.surface.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppTheme.texto.withValues(alpha: 0.08),
+              width: 1,
+            ),
+          ),
+          child: Icon(icon, color: AppTheme.textoSec, size: 20),
+        ),
+      ),
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Shimmer Loading States
+  // ────────────────────────────────────────────────────────────────
+  Widget _buildShimmerHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: ShimmerCard(height: 56),
+    );
+  }
+
+  Widget _buildShimmerKpis() {
+    return SizedBox(
+      height: 110,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: const [
+          ShimmerCard(width: 120, height: 110),
+          SizedBox(width: 10),
+          ShimmerCard(width: 120, height: 110),
+          SizedBox(width: 10),
+          ShimmerCard(width: 120, height: 110),
+          SizedBox(width: 10),
+          ShimmerCard(width: 120, height: 110),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: ShimmerCard(height: 140),
+      ),
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Staggered Animation
+  // ────────────────────────────────────────────────────────────────
+  Widget _staggeredStoryCard(Story story, int index) {
+    final delay = index * 0.05;
+    final duration = 0.4;
+
+    return AnimatedBuilder(
+      animation: _staggerController,
+      builder: (context, child) {
+        final progress = ((_staggerController.value - delay) / duration)
+            .clamp(0.0, 1.0);
+        final eased = Curves.easeOutCubic.transform(progress);
+
+        return Opacity(
+          opacity: eased,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - eased)),
+            child: child,
+          ),
+        );
+      },
+      child: StoryCard(
+        story: story,
+        onTap: () {
+          Navigator.pushNamed(context, '/story', arguments: story);
+        },
+      ),
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────────
   // Timeline chart builder
   // ────────────────────────────────────────────────────────────────
   String _selectedTimelineCycle = 'all';
@@ -586,23 +804,7 @@ class _RadarScreenState extends State<RadarScreen> {
       'cultural': Colors.purple,
     };
 
-    // Sentiment data per day (-1 to 1)
-    final sentimentPerDay = List.generate(days.length, (i) {
-      final day = days[i];
-      final dayStories = _stories.where((s) {
-        final d = DateTime(s.updatedAt.year, s.updatedAt.month, s.updatedAt.day);
-        return d.year == day.year && d.month == day.month && d.day == day.day;
-      }).toList();
-      if (dayStories.isEmpty) return null;
-      double sum = 0;
-      for (final s in dayStories) {
-        sum += s.sentimentTrend == 'rising' ? 1.0 : s.sentimentTrend == 'falling' ? -1.0 : 0.0;
-      }
-      return sum / dayStories.length;
-    });
-
     if (_selectedTimelineCycle == 'all') {
-      // Stacked bar: one bar per day, colored by cycle
       final maxY = totalData.fold<int>(1, (m, e) => e.value > m ? e.value : m).toDouble();
       return Column(
         children: [
@@ -612,8 +814,8 @@ class _RadarScreenState extends State<RadarScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _timelineChip('all', '🌐 Todos'),
-                ..._cycles.map((c) => _timelineChip(c, _cycleEmoji(c))),
+                _timelineChip('all', 'Todos'),
+                ..._cycles.map((c) => _timelineChip(c, c[0].toUpperCase() + c.substring(1))),
               ],
             ),
           ),
@@ -674,7 +876,7 @@ class _RadarScreenState extends State<RadarScreen> {
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipColor: (_) => AppTheme.card,
-                    
+
                   ),
                 ),
               ),
@@ -683,7 +885,6 @@ class _RadarScreenState extends State<RadarScreen> {
         ],
       );
     } else {
-      // Line chart for selected cycle
       final cycleData = byCycle[_selectedTimelineCycle] ?? [];
       final spots = List.generate(days.length, (i) {
         final day = days[i];
@@ -700,8 +901,8 @@ class _RadarScreenState extends State<RadarScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _timelineChip('all', '🌐 Todos'),
-                ..._cycles.map((c) => _timelineChip(c, _cycleEmoji(c))),
+                _timelineChip('all', 'Todos'),
+                ..._cycles.map((c) => _timelineChip(c, c[0].toUpperCase() + c.substring(1))),
               ],
             ),
           ),
@@ -754,7 +955,7 @@ class _RadarScreenState extends State<RadarScreen> {
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => AppTheme.card,
-                    
+
                   ),
                 ),
               ),
@@ -785,12 +986,6 @@ class _RadarScreenState extends State<RadarScreen> {
         ),
       ),
     );
-  }
-
-  String _cycleEmoji(String cycle) {
-    const map = {'conflito': '⚔️', 'economico': '📊', 'politico': '🏛️', 'social': '👥',
-      'tecnologico': '⚡', 'ambiental': '🌱', 'cultural': '🎭'};
-    return map[cycle] ?? '📰';
   }
 
   Widget _buildCycleLegend() {
@@ -936,9 +1131,16 @@ class _RadarScreenState extends State<RadarScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             const Spacer(),
-            Text(
-              'há ${_timeAgo(story.updatedAt)}',
-              style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule, color: AppTheme.textoSec, size: 10),
+                const SizedBox(width: 3),
+                Text(
+                  'há ${_timeAgo(story.updatedAt)}',
+                  style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
+                ),
+              ],
             ),
           ],
         ),
@@ -992,7 +1194,7 @@ class _RadarScreenState extends State<RadarScreen> {
     );
   }
 
-  Widget _regionChip(String flag, String code, String label, bool selected, VoidCallback onTap) {
+  Widget _regionChip(IconData icon, String code, String label, bool selected, VoidCallback onTap) {
     final color = _regionColor(code);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -1008,7 +1210,7 @@ class _RadarScreenState extends State<RadarScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(flag, style: const TextStyle(fontSize: 12)),
+              Icon(icon, color: selected ? color : AppTheme.textoSec, size: 12),
               const SizedBox(width: 4),
               Text(label, style: TextStyle(
                 color: selected ? color : AppTheme.textoSec,
