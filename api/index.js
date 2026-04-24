@@ -38,6 +38,95 @@ async function fetchRSS(url, sourceId) {
   }
 }
 
+// HTML scraping para fontes sem RSS ou com RSS quebrado
+const SCRAPER_CONFIGS = {
+  'estadao': {
+    url: 'https://www.estadao.com.br',
+    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*\.shtml)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.estadao.com.br'
+  },
+  'oglobo': {
+    url: 'https://oglobo.globo.com',
+    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*\.html)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://oglobo.globo.com'
+  },
+  'metropoles': {
+    url: 'https://www.metropoles.com',
+    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.metropoles.com'
+  },
+  'icl': {
+    url: 'https://www.iclinic.com.br/noticias',
+    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.iclinic.com.br'
+  },
+  'reuters': {
+    url: 'https://www.reuters.com',
+    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.reuters.com'
+  },
+  'cnn': {
+    url: 'https://edition.cnn.com',
+    selector: /<a[^>]+href="(\/\d{4}\/[^"]*\.html)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://edition.cnn.com'
+  },
+  'ap': {
+    url: 'https://apnews.com',
+    selector: /<a[^>]+href="(\/article\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://apnews.com'
+  },
+  'aljazeera': {
+    url: 'https://www.aljazeera.com',
+    selector: /<a[^>]+href="(\/news\/\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.aljazeera.com'
+  },
+  'france24': {
+    url: 'https://www.france24.com',
+    selector: /<a[^>]+href="(\/en\/[^"]*\d{4}[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.france24.com'
+  },
+  'dw': {
+    url: 'https://www.dw.com',
+    selector: /<a[^>]+href="(\/en\/[^"]*\d{4}[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    baseUrl: 'https://www.dw.com'
+  },
+};
+
+async function scrapeHTML(sourceId) {
+  try {
+    const config = SCRAPER_CONFIGS[sourceId];
+    if (!config) return [];
+
+    const res = await fetch(config.url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ProphetBot/0.1)'
+      }
+    });
+    if (!res.ok) return [];
+
+    const html = await res.text();
+    const articles = [];
+    const seen = new Set();
+
+    let match;
+    while ((match = config.selector.exec(html)) !== null) {
+      const [, href, rawTitle] = match;
+      const url = href.startsWith('http') ? href : config.baseUrl + href;
+      const title = rawTitle.replace(/<[^>]+>/g, '').trim();
+
+      if (title.length > 20 && !seen.has(url)) {
+        seen.add(url);
+        articles.push({ title, url, source_id: sourceId, published_at: new Date().toISOString() });
+      }
+    }
+
+    return articles.slice(0, 15); // limita a 15 artigos por fonte
+  } catch (e) {
+    console.error(`HTML scrape error ${sourceId}:`, e.message);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -97,13 +186,20 @@ export default async function handler(req, res) {
       let totalCollected = 0;
 
       for (const src of (dbSources || [])) {
-        if (!src.rss_url) {
-          log.push(`${src.slug}: sem RSS URL`);
-          continue;
+        let articles = [];
+        
+        // Tenta RSS primeiro
+        if (src.rss_url) {
+          articles = await fetchRSS(src.rss_url, src.slug);
         }
-        const articles = await fetchRSS(src.rss_url, src.slug);
+        
+        // Fallback para HTML scraping se RSS falhar ou não existir
+        if (articles.length === 0 && SCRAPER_CONFIGS[src.slug]) {
+          articles = await scrapeHTML(src.slug);
+        }
+        
         totalCollected += articles.length;
-        log.push(`${src.slug}: ${articles.length} artigos`);
+        log.push(`${src.slug}: ${articles.length} artigos (${src.rss_url ? 'RSS' : 'HTML'})`);
 
         if (articles.length > 0) {
           for (const article of articles) {
