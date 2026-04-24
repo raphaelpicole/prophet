@@ -412,16 +412,24 @@ export default async function handler(req, res) {
               }).eq('id', article.id);
             }
 
-            await supabase.from('predictions').insert({
-              story_id: newStory.id,
-              prediction: main.analysis.topic === 'guerra' ? 'Tensões devem continuar' :
-                           main.analysis.topic === 'economia' ? 'Mercado deve reagir' :
-                           main.analysis.topic === 'política' ? 'Debate deve intensificar' :
-                           'Monitorar desenvolvimentos',
-              confidence: main.analysis.confidence,
-              timeframe: '48h',
-              status: 'pending',
-            });
+            // Gerar predição
+            try {
+              const { data: predData, error: predError } = await supabase.from('predictions').insert({
+                story_id: newStory.id,
+                prediction: main.analysis.topic === 'guerra' ? 'Tensões devem continuar' :
+                             main.analysis.topic === 'economia' ? 'Mercado deve reagir' :
+                             main.analysis.topic === 'política' ? 'Debate deve intensificar' :
+                             'Monitorar desenvolvimentos',
+                confidence: main.analysis.confidence,
+                timeframe: '48h',
+                status: 'pending',
+              });
+              if (predError) {
+                console.error('Erro ao criar predição:', predError.message);
+              }
+            } catch (predErr) {
+              console.error('Exception ao criar predição:', predErr.message);
+            }
           }
 
           log.push(`análise: ${analyzed.length} artigos, ${groups.length} stories`);
