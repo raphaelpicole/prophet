@@ -12,4 +12,5 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * Ponto forte: é uma pipeline atômica — se qualquer etapa falha,
  * as anteriores já persistiram. Não perde dados.
  */
-export default function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse>;
+declare const _default: (req: VercelRequest, res: VercelResponse) => Promise<any>;
+export default _default;
