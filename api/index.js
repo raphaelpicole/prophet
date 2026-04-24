@@ -425,10 +425,12 @@ export default async function handler(req, res) {
                 status: 'pending',
               });
               if (predError) {
-                console.error('Erro ao criar predição:', predError.message);
+                log.push(`predição ERRO: ${predError.message}`);
+              } else {
+                log.push(`predição OK: ${newStory.id}`);
               }
             } catch (predErr) {
-              console.error('Exception ao criar predição:', predErr.message);
+              log.push(`predição EXCEPTION: ${predErr.message}`);
             }
           }
 
