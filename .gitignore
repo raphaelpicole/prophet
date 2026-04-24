@@ -5,8 +5,7 @@
 # --- Node.js / Server ---
 node_modules/
 server/node_modules/
-server/dist/
-dist/
+# dist/ e server/dist/ REMOVIDOS — precisamos dos arquivos compilados no deploy
 *.tsbuildinfo
 
 # --- Environment & Secrets ---
