@@ -1,9 +1,9 @@
-import { withSentry } from './middleware/sentry.js';
-import { collectAllSources } from './collectors/index.js';
-import { deduplicate } from './dedup/deduplicator.js';
-import { analyzePending } from './analyzer/index.js';
-import { groupArticlesIntoStories } from './analyzer/grouper.js';
-import { supabase } from './db/supabase.js';
+import { withSentry } from './src/middleware/sentry.js';
+import { collectAllSources } from './src/collectors/index.js';
+import { deduplicate } from './src/dedup/deduplicator.js';
+import { analyzePending } from './src/analyzer/index.js';
+import { groupArticlesIntoStories } from './src/analyzer/grouper.js';
+import { supabase } from './src/db/supabase.js';
 /**
  * CRON ENTRY — Vercel chama a cada 15 min.
  *
