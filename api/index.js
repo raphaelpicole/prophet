@@ -38,6 +38,52 @@ async function fetchRSS(url, sourceId) {
   }
 }
 
+// Análise e agrupamento com regras simples
+const TOPIC_KEYWORDS = {
+  'política': ['bolsonaro', 'lula', 'governo', 'congresso', 'senado', 'camara', 'eleição', 'pt', 'psdb', 'direita', 'esquerda', 'ministro', 'presidente', 'político'],
+  'economia': ['economia', 'inflação', 'dólar', 'juros', 'pib', 'mercado', 'bolsa', 'ibovespa', 'fed', 'bce', 'bc', 'banco central'],
+  'tecnologia': ['tech', 'tecnologia', 'ia', 'inteligência artificial', 'chatgpt', 'apple', 'google', 'microsoft', 'meta', 'startup', 'app'],
+  'saúde': ['covid', 'vacina', 'saúde', 'hospital', 'médico', 'doença', 'sus', 'oms'],
+  'guerra': ['guerra', 'ucrânia', 'rússia', 'putin', 'zelensky', 'conflito', 'militar', 'ataque', 'bomba', 'otan'],
+  'crime': ['crime', 'polícia', 'prisão', 'assalto', 'homicídio', 'tráfico', 'pf', 'pc'],
+  'clima': ['clima', 'aquecimento', 'temperatura', 'chuva', 'secas', 'enchente', 'meio ambiente', 'amazônia', 'desmatamento'],
+  'esporte': ['futebol', 'copa', 'brasileirão', 'libertadores', 'flamengo', 'palmeiras', 'jogo', 'seleção'],
+  'entretenimento': ['filme', 'série', 'netflix', 'oscar', 'grammy', 'celebridade', 'famoso', 'música'],
+};
+
+function analyzeArticle(title) {
+  const lower = title.toLowerCase();
+  let topic = 'geral';
+  let sentiment = 'neutro';
+  let confidence = 0.5;
+  
+  for (const [t, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (lower.includes(kw)) {
+        topic = t;
+        confidence = 0.7;
+        break;
+      }
+    }
+    if (topic !== 'geral') break;
+  }
+  
+  const negative = ['crise', 'queda', 'problema', 'guerra', 'ataque', 'morte', 'acidente', 'prisão'];
+  const positive = ['crescimento', 'alta', 'vitória', 'sucesso', 'avanço', 'recuperação'];
+  
+  if (negative.some(w => lower.includes(w))) sentiment = 'negativo';
+  else if (positive.some(w => lower.includes(w))) sentiment = 'positivo';
+  
+  return { topic, sentiment, confidence, keywords: [] };
+}
+
+function similarTitles(t1, t2) {
+  const words1 = t1.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const words2 = t2.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const common = words1.filter(w => words2.includes(w));
+  return common.length >= 2;
+}
+
 // HTML scraping para fontes sem RSS ou com RSS quebrado
 const SCRAPER_CONFIGS = {
   'estadao': {
@@ -250,9 +296,91 @@ export default async function handler(req, res) {
         }
       }
 
+      // ===== ANÁLISE E AGRUPAMENTO AUTOMÁTICO =====
+      try {
+        const { data: pendingArticles } = await supabase
+          .from('raw_articles')
+          .select('*')
+          .eq('status', 'pending')
+          .order('published_at', { ascending: false })
+          .limit(100);
+
+        if (pendingArticles && pendingArticles.length > 0) {
+          const analyzed = pendingArticles.map(a => ({
+            ...a,
+            analysis: analyzeArticle(a.title)
+          }));
+
+          const groups = [];
+          const used = new Set();
+          
+          for (let i = 0; i < analyzed.length; i++) {
+            if (used.has(i)) continue;
+            const group = [analyzed[i]];
+            used.add(i);
+            
+            for (let j = i + 1; j < analyzed.length; j++) {
+              if (used.has(j)) continue;
+              if (analyzed[i].analysis.topic === analyzed[j].analysis.topic &&
+                  similarTitles(analyzed[i].title, analyzed[j].title)) {
+                group.push(analyzed[j]);
+                used.add(j);
+              }
+            }
+            
+            if (group.length >= 2) groups.push(group);
+          }
+
+          for (const group of groups.slice(0, 20)) {
+            const main = group[0];
+            const { data: newStory } = await supabase
+              .from('stories')
+              .insert({
+                title: main.title,
+                summary: `Tópico: ${main.analysis.topic}. ${group.length} artigos.`,
+                topic: main.analysis.topic,
+                status: 'active',
+                article_count: group.length,
+              })
+              .select()
+              .single();
+            
+            if (!newStory) continue;
+            
+            for (const article of group) {
+              await supabase.from('story_articles').upsert({
+                story_id: newStory.id,
+                article_id: article.id,
+              }, { onConflict: 'story_id,article_id' });
+              
+              await supabase.from('raw_articles').update({
+                status: 'analyzed',
+                analysis: article.analysis,
+              }).eq('id', article.id);
+            }
+
+            await supabase.from('predictions').insert({
+              story_id: newStory.id,
+              prediction: main.analysis.topic === 'guerra' ? 'Tensões devem continuar' :
+                           main.analysis.topic === 'economia' ? 'Mercado deve reagir' :
+                           main.analysis.topic === 'política' ? 'Debate deve intensificar' :
+                           'Monitorar desenvolvimentos',
+              confidence: main.analysis.confidence,
+              timeframe: '48h',
+              status: 'pending',
+            });
+          }
+
+          log.push(`análise: ${analyzed.length} artigos, ${groups.length} stories`);
+        }
+      } catch (e) {
+        console.error('Erro análise:', e.message);
+        log.push(`erro análise: ${e.message}`);
+      }
+
       return res.status(200).json({
         success: true,
-        message: 'Coleta concluída',
+        message: 'Coleta e análise concluídas',
         total: totalCollected,
         log,
       });
