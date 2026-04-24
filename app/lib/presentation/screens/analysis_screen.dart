@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
@@ -110,7 +109,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     for (final src in _allSources) {
       map[src.id] = _SourceStat(
         sourceId: src.id,
-        name: src.name,
+        name: _displayName(src.slug, src.name),
         slug: src.slug,
         ideology: src.ideology,
         articles: [],
@@ -144,15 +143,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     ).toList();
   }
 
-  String _sourceLabel(Source s) {
+  String _displayName(String slug, String fallback) {
     final names = {
-      'g1': 'G1', 'folha': 'Folha', 'uol': 'UOL', 'estadao': 'Estadão',
-      'oglobo': 'O Globo', 'bbc': 'BBC', 'cnn': 'CNN', 'metropoles': 'Metrópolis',
-      'icl': 'ICL', 'reuters': 'Reuters', 'aljazeera': 'Al Jazeera',
-      'france24': 'France 24', 'dw': 'DW', 'rte': 'RTÉ', 'nbc': 'NBC',
-      'ap': 'AP News',
+      'g1': '🔵 Fonte A', 'folha': '📰 Fonte B', 'uol': '🌐 Fonte C',
+      'estadao': '📊 Fonte D', 'oglobo': '🌍 Fonte E', 'bbc': '📡 Fonte G',
+      'cnn': '📺 Fonte F', 'metropoles': '🏙️ Fonte H', 'icl': '🏛️ Fonte I',
+      'reuters': '📈 Fonte J', 'aljazeera': '🌙 Fonte K', 'france24': '🇫🇷 Fonte L',
+      'dw': '🎙️ Fonte M', 'rte': '📻 Fonte N', 'nbc': '📺 Fonte O',
+      'ap': '📰 Fonte P',
     };
-    return names[s.slug] ?? s.name;
+    return names[slug.toLowerCase()] ?? fallback;
   }
 
   @override
@@ -900,91 +900,71 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   }
 
   Widget _detailArticleItem(Story story, dynamic article) {
-    return GestureDetector(
-      onTap: () async {
-        final url = article.url as String?;
-        if (url != null && url.isNotEmpty) {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          }
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _cycleBadge(story.cycle),
-                const Spacer(),
-                const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(story.title, style: const TextStyle(
-              color: AppTheme.texto, fontSize: 12,
-            ), maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(_timeAgo(story.updatedAt), style: const TextStyle(
-              color: AppTheme.textoSec, fontSize: 10,
-            )),
-          ],
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _cycleBadge(story.cycle),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(story.title, style: const TextStyle(
+            color: AppTheme.texto, fontSize: 12,
+          ), maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text(_timeAgo(story.updatedAt), style: const TextStyle(
+            color: AppTheme.textoSec, fontSize: 10,
+          )),
+        ],
       ),
     );
   }
 
   Widget _foreignSourceCard(ForeignSource src) {
-    return GestureDetector(
-      onTap: () async {
-        final uri = Uri.tryParse(src.url);
-        if (uri != null) {
-          try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            const Text('🌐', style: TextStyle(fontSize: 18)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(src.name, style: const TextStyle(
-                    color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
-                  )),
-                  Text(src.url.replaceFirst('https://', '').replaceFirst('http://', ''),
-                      style: const TextStyle(color: AppTheme.textoSec, fontSize: 10),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Text('🌐', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(src.name, style: const TextStyle(
+                  color: AppTheme.texto, fontSize: 12, fontWeight: FontWeight.w600,
+                )),
+                Text(src.language, style: const TextStyle(
+                  color: AppTheme.textoSec, fontSize: 10,
+                )),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(src.language, style: const TextStyle(
-                color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w600,
-              )),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
             ),
-          ],
-        ),
+            child: Text(src.language, style: const TextStyle(
+              color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w600,
+            )),
+          ),
+        ],
       ),
     );
   }

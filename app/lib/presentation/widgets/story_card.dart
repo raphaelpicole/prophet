@@ -117,9 +117,9 @@ class _StoryCardState extends State<StoryCard>
 
   String _sourceLabel(String sourceId) {
     final map = {
-      'g1': 'G1', 'folha': 'Folha', 'uol': 'UOL',
-      'estadao': 'Estadão', 'oglobo': 'O Globo', 'cnn': 'CNN',
-      'bbc': 'BBC', 'metropoles': 'Metrópolis',
+      'g1': '🔵 Fonte A', 'folha': '📰 Fonte B', 'uol': '🌐 Fonte C',
+      'estadao': '📊 Fonte D', 'oglobo': '🌍 Fonte E', 'cnn': '📺 Fonte F',
+      'bbc': '📡 Fonte G', 'metropoles': '🏙️ Fonte H',
     };
     return map[sourceId] ?? sourceId.toUpperCase();
   }

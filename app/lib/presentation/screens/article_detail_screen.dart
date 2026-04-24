@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 
@@ -59,11 +58,6 @@ class ArticleDetailScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
-              if (displayUrl != null)
-                IconButton(
-                  icon: const Icon(Icons.open_in_browser, size: 20, color: AppTheme.texto),
-                  onPressed: () => _openUrl(displayUrl),
-                ),
               IconButton(
                 icon: const Icon(Icons.share, size: 20, color: AppTheme.texto),
                 onPressed: () => _shareArticle(displayUrl, displayTitle),
@@ -160,26 +154,7 @@ class ArticleDetailScreen extends StatelessWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-          // Botão abrir fonte (se artigo tem URL)
-          if (displayUrl != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ElevatedButton.icon(
-                  onPressed: () => _openUrl(displayUrl),
-                  icon: const Icon(Icons.open_in_browser, size: 18),
-                  label: const Text('Ler artigo completo na fonte original'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ),
 
-          if (displayUrl != null) const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
           // Seção: Previsão vinculada (se houver)
           if (story.prediction != null) ...[
@@ -552,9 +527,6 @@ class ArticleDetailScreen extends StatelessWidget {
   }
 
   String _confiabilityLabel(Story story, String? source) {
-    const highReliability = ['g1', 'folha', 'uol', 'estadao', 'bbc', 'reuters', 'ap', 'al-jazeera', 'dw'];
-    final src = (source ?? '').toLowerCase();
-    if (highReliability.contains(src)) return 'Alta';
     if (story.articleCount >= 3) return 'Alta';
     if (story.articleCount == 1) return 'Média';
     return 'Alta';
@@ -672,22 +644,22 @@ class ArticleDetailScreen extends StatelessWidget {
 
   String _sourceLabel(String sourceId) {
     const sourceNames = {
-      'g1': 'G1',
-      'folha': 'Folha',
-      'uol': 'UOL',
-      'estadao': 'Estadão',
-      'oglobo': 'O Globo',
-      'bbc': 'BBC',
-      'cnn': 'CNN',
-      'metropoles': 'Metropoles',
-      'icl': 'ICL',
-      'reuters': 'Reuters',
-      'ap': 'AP News',
-      'al-jazeera': 'Al Jazeera',
-      'france24': 'France 24',
-      'dw': 'DW',
-      'rte': 'RTÉ',
-      'nbc': 'NBC',
+      'g1': '🔵 Fonte A',
+      'folha': '📰 Fonte B',
+      'uol': '🌐 Fonte C',
+      'estadao': '📊 Fonte D',
+      'oglobo': '🌍 Fonte E',
+      'bbc': '📡 Fonte G',
+      'cnn': '📺 Fonte F',
+      'metropoles': '🏙️ Fonte H',
+      'icl': '🏛️ Fonte I',
+      'reuters': '📈 Fonte J',
+      'ap': '📰 Fonte P',
+      'al-jazeera': '🌙 Fonte K',
+      'france24': '🇫🇷 Fonte L',
+      'dw': '🎙️ Fonte M',
+      'rte': '📻 Fonte N',
+      'nbc': '📺 Fonte O',
     };
     return sourceNames[sourceId.toLowerCase()] ?? sourceId;
   }
@@ -712,15 +684,6 @@ class ArticleDetailScreen extends StatelessWidget {
       'cultural': 'Fenômeno cultural de repercussão. Reflete valores e tendências da sociedade contemporânea.',
     };
     return analyses[story.cycle] ?? analyses['social']!;
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } catch (_) {}
-    }
   }
 
   Future<void> _shareArticle(String? url, String title) async {

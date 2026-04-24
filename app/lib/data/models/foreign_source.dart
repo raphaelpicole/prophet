@@ -13,32 +13,32 @@ class ForeignSource {
 
   static const List<ForeignSource> all = [
     ForeignSource(
-      name: 'AP News',
-      url: 'https://apnews.com/rss',
+      name: '📰 Fonte P',
+      url: '',
       country: 'USA',
       language: 'EN',
     ),
     ForeignSource(
-      name: 'Al Jazeera English',
-      url: 'https://www.aljazeera.com/xml/rss/all.xml',
+      name: '🌙 Fonte K',
+      url: '',
       country: 'Qatar',
       language: 'EN',
     ),
     ForeignSource(
-      name: 'France 24 English',
-      url: 'https://www.france24.com/en/rss',
+      name: '🇫🇷 Fonte L',
+      url: '',
       country: 'France',
       language: 'EN',
     ),
     ForeignSource(
-      name: 'DW English',
-      url: 'https://rss.dw.com/rdf/rss-en-all',
+      name: '🎙️ Fonte M',
+      url: '',
       country: 'Germany',
       language: 'EN',
     ),
     ForeignSource(
-      name: 'RTÉ News',
-      url: 'https://www.rte.ie/rss/news.xml',
+      name: '📻 Fonte N',
+      url: '',
       country: 'Ireland',
       language: 'EN',
     ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/story.dart';
 import '../../data/services/api_service.dart';
@@ -146,11 +145,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     final articleUrl = a['url'] as String?;
     return GestureDetector(
       onTap: () {
-        if (articleId == null) {
-          // Fallback: open URL if no article ID
-          _openUrl(articleUrl);
-          return;
-        }
+        if (articleId == null) return;
         // Build a PreviewArticle from the raw map and navigate
         final pa = PreviewArticle(
           id: articleId,
@@ -189,14 +184,13 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                 Expanded(
                   child: Text(a['title'] ?? 'Sem título', style: const TextStyle(color: AppTheme.texto, fontSize: 13, fontWeight: FontWeight.w500)),
                 ),
-                if (articleUrl != null && articleUrl.isNotEmpty)
-                  const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
+
               ],
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Text(a['source_name'] ?? a['source_slug'] ?? '—', style: const TextStyle(color: AppTheme.primary, fontSize: 11)),
+                Text(_sourceLabel(a['source_slug'] ?? ''), style: const TextStyle(color: AppTheme.primary, fontSize: 11)),
                 const Spacer(),
                 Text(_timeAgo(DateTime.tryParse(a['published_at'] ?? '') ?? DateTime.now()), style: const TextStyle(color: AppTheme.textoSec, fontSize: 10)),
               ],
@@ -251,13 +245,12 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    a.sourceId,
+                    _sourceLabel(a.sourceId),
                     style: const TextStyle(color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w600),
                   ),
                 ),
                 const Spacer(),
-                if (a.url != null && a.url!.isNotEmpty)
-                  const Icon(Icons.open_in_new, color: AppTheme.textoSec, size: 14),
+
               ],
             ),
             const SizedBox(height: 8),
@@ -408,10 +401,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
   }
 
   Future<void> _shareStory() async {
-    final url = Uri.parse('https://twitter.com/intent/tweet?text=${Uri.encodeComponent(widget.story.title)}&url=${Uri.encodeComponent("https://prophet-9v2jem4ra-raphaelpicoles-projects.vercel.app")}');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
+    // Compartilhamento desabilitado
   }
 
   Widget _sentimentTimeline() {
@@ -488,6 +478,18 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     ],
   );
 
+  String _sourceLabel(String sourceId) {
+    final map = {
+      'g1': '🔵 Fonte A', 'folha': '📰 Fonte B', 'uol': '🌐 Fonte C',
+      'estadao': '📊 Fonte D', 'oglobo': '🌍 Fonte E', 'cnn': '📺 Fonte F',
+      'bbc': '📡 Fonte G', 'metropoles': '🏙️ Fonte H', 'icl': '🏛️ Fonte I',
+      'reuters': '📈 Fonte J', 'aljazeera': '🌙 Fonte K', 'france24': '🇫🇷 Fonte L',
+      'dw': '🎙️ Fonte M', 'rte': '📻 Fonte N', 'nbc': '📺 Fonte O',
+      'ap': '📰 Fonte P',
+    };
+    return map[sourceId.toLowerCase()] ?? sourceId.toUpperCase();
+  }
+
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
@@ -495,11 +497,5 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
     return '${diff.inDays}d';
   }
 
-  Future<void> _openUrl(String? url) async {
-    if (url == null || url.isEmpty) return;
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      try { await launchUrl(uri, mode: LaunchMode.externalApplication); } catch (_) {}
-    }
-  }
+
 }
