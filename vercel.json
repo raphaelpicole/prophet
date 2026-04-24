@@ -1,20 +1,18 @@
 {
   "version": 2,
   "installCommand": "cd server && npm install",
-  "buildCommand": "echo 'Using prebuilt Flutter assets'",
+  "buildCommand": "cd server && npm run build",
   "outputDirectory": "app/build/web",
   "routes": [
-    { "src": "/api/cron/collect", "dest": "/api/collect.js" },
-    { "src": "/api/cron/maintenance", "dest": "/api/cron/maintenance.js" },
-    { "src": "/api/collect", "dest": "/api/collect.js" },
-    { "src": "/api/regions", "dest": "/api/misc.js" },
-    { "src": "/api/sources", "dest": "/api/misc.js" },
-    { "src": "/api/hello", "dest": "/api/misc.js" },
-    { "src": "/api/historical", "dest": "/api/misc.js" },
-    { "src": "/api/predictions", "dest": "/api/data.js" },
-    { "src": "/api/logs", "dest": "/api/data.js" },
-    { "src": "/api/admin(/.*)?", "dest": "/api/admin-panel.js" },
-    { "src": "/api/(.*)", "dest": "/api/$1.js" }
+    { "src": "/api/cron/collect", "dest": "server/dist/api/cron/collect.js" },
+    { "src": "/api/cron/maintenance", "dest": "server/dist/api/cron/maintenance.js" },
+    { "src": "/api/collect", "dest": "server/dist/api/collect.js" },
+    { "src": "/api/regions", "dest": "server/dist/api/regions.js" },
+    { "src": "/api/sources", "dest": "server/dist/api/sources.js" },
+    { "src": "/api/indicators", "dest": "server/dist/api/indicators.js" },
+    { "src": "/api/stories", "dest": "server/dist/api/stories.js" },
+    { "src": "/api/story", "dest": "server/dist/api/story.js" },
+    { "src": "/api/(.*)", "dest": "server/dist/api/$1.js" }
   ],
   "crons": [{
     "path": "/api/cron/collect",
