@@ -278,23 +278,36 @@ export default async function handler(req, res) {
       let totalCollected = 0;
 
       for (const src of (dbSources || [])) {
-        let articles = [];
+        let allArticles = [];
+        const seenUrls = new Set();
         
-        // Tenta RSS primeiro
+        // SEMPRE tenta RSS primeiro (se disponível)
         if (src.rss_url) {
-          articles = await fetchRSS(src.rss_url, src.slug);
+          const rssArticles = await fetchRSS(src.rss_url, src.slug);
+          for (const a of rssArticles) {
+            if (!seenUrls.has(a.url)) {
+              seenUrls.add(a.url);
+              allArticles.push(a);
+            }
+          }
         }
         
-        // Fallback para HTML scraping se RSS falhar ou não existir
-        if (articles.length === 0 && SCRAPER_CONFIGS[src.slug]) {
-          articles = await scrapeHTML(src.slug);
+        // SEMPRE tenta HTML também (se configurado)
+        if (SCRAPER_CONFIGS[src.slug]) {
+          const htmlArticles = await scrapeHTML(src.slug);
+          for (const a of htmlArticles) {
+            if (!seenUrls.has(a.url)) {
+              seenUrls.add(a.url);
+              allArticles.push(a);
+            }
+          }
         }
         
-        totalCollected += articles.length;
-        log.push(`${src.slug}: ${articles.length} artigos (${src.rss_url ? 'RSS' : 'HTML'})`);
+        totalCollected += allArticles.length;
+        log.push(`${src.slug}: ${allArticles.length} artigos (RSS:${src.rss_url ? 'sim' : 'não'} + HTML:${SCRAPER_CONFIGS[src.slug] ? 'sim' : 'não'})`);
 
-        if (articles.length > 0) {
-          for (const article of articles) {
+        if (allArticles.length > 0) {
+          for (const article of allArticles) {
             await supabase.from('raw_articles').upsert({
               source_id: article.source_id,
               title: article.title,
