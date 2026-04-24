@@ -1,6 +1,5 @@
 # Ignore build/source directories
 server/
-app/
 backend_old/
 migrations/
 node_modules/
