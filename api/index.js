@@ -4,6 +4,40 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Simple RSS parser
+function parseRSS(xml, sourceId) {
+  const items = xml.matchAll(/<item[\s\S]*?<\/item>/g);
+  const articles = [];
+  for (const item of items) {
+    const raw = item[0];
+    const title = raw.match(/<title>\s*<!\[CDATA\[(.*?)\]\]>\s*<\/title>/)?.[1]
+      ?? raw.match(/<title>(.*?)<\/title>/)?.[1]?.trim() ?? '';
+    const link = raw.match(/<link>(.*?)<\/link>/)?.[1]?.trim() ?? '';
+    const pubDate = raw.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
+    if (title && link) {
+      let published_at;
+      if (pubDate) {
+        const date = new Date(pubDate);
+        if (!isNaN(date.getTime())) published_at = date.toISOString();
+      }
+      articles.push({ title: title.replace(/&amp;/g, '&'), url: link, source_id: sourceId, published_at });
+    }
+  }
+  return articles;
+}
+
+async function fetchRSS(url, sourceId) {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'ProphetBot/0.1' } });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return parseRSS(xml, sourceId);
+  } catch (e) {
+    console.error(`RSS error ${sourceId}:`, e.message);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -54,7 +88,47 @@ export default async function handler(req, res) {
       if (req.method !== 'GET' && req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
       }
-      return res.status(200).json({ success: true, message: 'Collect endpoint - use npx tsx src/pipeline/worker.ts locally' });
+
+      // Coleta manual
+      const sources = [
+        { id: 'g1', url: 'https://g1.globo.com/rss/g1/' },
+        { id: 'folha', url: 'https://feeds.folha.uol.com.br/emais/rss091.xml' },
+        { id: 'uol', url: 'https://noticias.uol.com.br/rss.xml' },
+        { id: 'estadao', url: 'https://www.estadao.com.br/feed/rss' },
+        { id: 'oglobo', url: 'https://oglobo.globo.com/rss' },
+        { id: 'bbc', url: 'https://feeds.bbci.co.uk/news/rss.xml' },
+        { id: 'cnn', url: 'https://rss.cnn.com/rss/edition.rss' },
+        { id: 'reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
+      ];
+
+      const log = [];
+      let totalCollected = 0;
+
+      for (const src of sources) {
+        const articles = await fetchRSS(src.url, src.id);
+        totalCollected += articles.length;
+        log.push(`${src.id}: ${articles.length} artigos`);
+
+        if (articles.length > 0) {
+          // Insere no banco (ignora duplicados por URL)
+          for (const article of articles) {
+            await supabase.from('raw_articles').upsert({
+              source_id: article.source_id,
+              title: article.title,
+              url: article.url,
+              published_at: article.published_at,
+              status: 'pending',
+            }, { onConflict: 'url' });
+          }
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Coleta concluída',
+        total: totalCollected,
+        log,
+      });
     }
 
     return res.status(404).json({ error: 'Not found', path });
