@@ -48,12 +48,17 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );
-      widget.onLoginSuccess(widget.authService);
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onLoginSuccess(widget.authService);
+      }
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = _parseAuthError(e);
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = _parseAuthError(e);
+        });
+      }
     }
   }
 
@@ -65,12 +70,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await widget.authService.signInWithGoogle();
-      widget.onLoginSuccess(widget.authService);
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onLoginSuccess(widget.authService);
+      }
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = _parseAuthError(e);
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = _parseAuthError(e);
+        });
+      }
     }
   }
 

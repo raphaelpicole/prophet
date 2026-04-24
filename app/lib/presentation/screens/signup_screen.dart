@@ -50,12 +50,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _passwordCtrl.text.trim(),
       );
 
-      widget.onLoginSuccess(widget.authService);
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onLoginSuccess(widget.authService);
+        Navigator.pop(context);
+      }
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = _parseAuthError(e);
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = _parseAuthError(e);
+        });
+      }
     }
   }
 

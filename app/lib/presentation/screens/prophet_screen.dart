@@ -466,10 +466,12 @@ class _ProphetScreenState extends State<ProphetScreen>
     final positive = p['positive'] as bool? ?? false;
     final cycleColor = _cycleColor(p['cycle'] ?? '');
 
-    return AnimatedButton(
-      onTap: () => _showPredictionDetail(p, prob, barColor, positive),
-      scaleOnPress: 0.98,
-      padding: EdgeInsets.zero,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: AnimatedButton(
+        onTap: () => _showPredictionDetail(p, prob, barColor, positive),
+        scaleOnPress: 0.98,
+        padding: EdgeInsets.zero,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -775,7 +777,8 @@ class _ProphetScreenState extends State<ProphetScreen>
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   void _showPredictionDetail(

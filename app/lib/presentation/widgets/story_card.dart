@@ -130,34 +130,36 @@ class _StoryCardState extends State<StoryCard>
     final story = widget.story;
     final cycleColor = _cycleColor(story.cycle);
 
-    return AnimatedButton(
-      onTap: _showArticlePreview ? _onExpandTap : _onCardTap,
-      onLongPress: widget.onTap,
-      scaleOnPress: 0.98,
-      duration: const Duration(milliseconds: 150),
-      padding: EdgeInsets.zero,
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cycleColor.withValues(alpha: _expanded ? 0.4 : 0.15),
-          width: 1,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: AnimatedButton(
+        onTap: _showArticlePreview ? _onExpandTap : _onCardTap,
+        onLongPress: widget.onTap,
+        scaleOnPress: 0.98,
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: cycleColor.withValues(alpha: _expanded ? 0.4 : 0.15),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: cycleColor.withValues(alpha: 0.06),
+              blurRadius: 12,
+              spreadRadius: 0,
+              offset: const Offset(0, 2),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: cycleColor.withValues(alpha: 0.06),
-            blurRadius: 12,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Gradient header bar
@@ -417,7 +419,8 @@ class _StoryCardState extends State<StoryCard>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _articlePreviewItem(PreviewArticle article) {
