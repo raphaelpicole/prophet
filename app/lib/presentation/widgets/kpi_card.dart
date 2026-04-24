@@ -85,7 +85,7 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
         return Transform.scale(
           scale: _scaleAnimation.value,
           child: Container(
-            width: 120,
+            width: 150,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -134,9 +134,9 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
                   '$_displayValue',
                   style: const TextStyle(
                     color: AppTheme.texto,
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
+                    letterSpacing: -1,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -147,7 +147,7 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
                         widget.label,
                         style: const TextStyle(
                           color: AppTheme.textoSec,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,

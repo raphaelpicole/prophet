@@ -292,7 +292,7 @@ class _RadarScreenState extends State<RadarScreen>
               // KPI Cards
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: 110,
+                  height: 120,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
