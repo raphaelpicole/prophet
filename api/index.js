@@ -312,15 +312,24 @@ export default async function handler(req, res) {
         log.push(`${src.slug}: ${allArticles.length} artigos (RSS:${src.rss_url ? 'sim' : 'não'} + HTML:${SCRAPER_CONFIGS[src.slug] ? 'sim' : 'não'})`);
 
         if (allArticles.length > 0) {
+          let inserted = 0;
+          let errors = 0;
           for (const article of allArticles) {
-            await supabase.from('raw_articles').upsert({
+            const { data, error } = await supabase.from('raw_articles').upsert({
               source_id: article.source_id,
               title: article.title,
               url: article.url,
               published_at: article.published_at,
               status: 'pending',
             }, { onConflict: 'url' });
+            if (error) {
+              errors++;
+              console.error(`Insert error for ${article.url}:`, error.message);
+            } else {
+              inserted++;
+            }
           }
+          log.push(`${src.slug}: inseridos ${inserted}, erros ${errors}`);
         }
       }
 
