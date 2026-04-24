@@ -1,4 +1,5 @@
 import { type RawArticle } from './rss.js';
+import { filterRealNews } from './content-filter.js';
 
 // RSS sources
 import { parseG1Feed, fetchG1, G1_SOURCE_ID, G1_NAME, G1_RSS_URL } from './g1.js';
@@ -50,7 +51,8 @@ export async function collectAllSources(): Promise<RawArticle[]> {
     }
   }
 
-  return allArticles;
+  // Filtra lifestyle/entretenimento — mantém apenas notícias reais
+  return filterRealNews(allArticles);
 }
 
 // Source registry
