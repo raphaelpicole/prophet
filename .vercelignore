@@ -1,0 +1,21 @@
+# Ignore build/source directories
+server/
+app/
+backend_old/
+migrations/
+node_modules/
+.firebase/
+
+# Ignore Vercel local files
+.vercel/
+
+# Ignore dev/config files
+.env*
+.eslintrc
+.prettierrc
+*.md
+memory/
+
+# Ignore source TypeScript (only using compiled JS)
+server/dist/**/*.d.ts
+server/dist/**/*.test.js

@@ -1,5 +1,5 @@
-import { supabase } from '../../src/db/supabase.js';
-import { withSentry } from '../src/middleware/sentry.js';
+import { supabase } from '../lib/db/supabase.js';
+import { withSentry } from '../lib/middleware/sentry.js';
 /**
  * GET /api/sources
  * Lista fontes de notícias com stats
