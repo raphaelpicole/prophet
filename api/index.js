@@ -86,6 +86,11 @@ function similarTitles(t1, t2) {
 
 // HTML scraping para fontes sem RSS ou com RSS quebrado
 const SCRAPER_CONFIGS = {
+  'g1': {
+    url: 'https://g1.globo.com',
+    selector: /href="(https:\/\/g1\.globo\.com\/[^"]*\/noticia\/\d{4}\/\d{2}\/\d{2}\/[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
+    baseUrl: ''
+  },
   'estadao': {
     url: 'https://www.estadao.com.br',
     selector: /href="(https:\/\/www\.estadao\.com\.br\/[^"]*\/(?:economia|politica|brasil|internacional|opiniao)\/[^"]*?)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
@@ -281,8 +286,11 @@ export default async function handler(req, res) {
         let allArticles = [];
         const seenUrls = new Set();
         
-        // SEMPRE tenta RSS primeiro (se disponível)
-        if (src.rss_url) {
+        // TESTE: Remove G1 do RSS, força apenas HTML
+        const skipRSS = src.slug === 'g1';
+        
+        // Tenta RSS primeiro (exceto para teste)
+        if (src.rss_url && !skipRSS) {
           const rssArticles = await fetchRSS(src.rss_url, src.slug);
           for (const a of rssArticles) {
             if (!seenUrls.has(a.url)) {
@@ -292,7 +300,7 @@ export default async function handler(req, res) {
           }
         }
         
-        // SEMPRE tenta HTML também (se configurado)
+        // Tenta HTML também (se configurado)
         if (SCRAPER_CONFIGS[src.slug]) {
           const htmlArticles = await scrapeHTML(src.slug);
           for (const a of htmlArticles) {
@@ -304,7 +312,8 @@ export default async function handler(req, res) {
         }
         
         totalCollected += allArticles.length;
-        log.push(`${src.slug}: ${allArticles.length} artigos (RSS:${src.rss_url ? 'sim' : 'não'} + HTML:${SCRAPER_CONFIGS[src.slug] ? 'sim' : 'não'})`);
+        const method = skipRSS ? 'HTML apenas' : (src.rss_url ? 'RSS+HTML' : 'HTML');
+        log.push(`${src.slug}: ${allArticles.length} artigos (${method})`);
 
         if (allArticles.length > 0) {
           for (const article of allArticles) {
