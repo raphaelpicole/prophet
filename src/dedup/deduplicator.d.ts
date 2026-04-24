@@ -2,6 +2,8 @@ export interface ArticleInput {
     title: string;
     url: string;
     content?: string;
+    source_id?: string;
+    published_at?: string;
 }
 export interface DeduplicationResult {
     isDuplicate: boolean;
@@ -41,3 +43,17 @@ export declare function deduplicateBatch(articles: ArticleInput[], existingArtic
     }[];
 };
 export declare function contentHash(text: string): string;
+/**
+ * Deduplica artigos contra os existentes no banco de dados.
+ * Busca todos os artigos recentes (últimas 24h) para comparar.
+ */
+export declare function deduplicate(articles: ArticleInput[]): Promise<{
+    newArticles: (ArticleInput & {
+        content_hash: string;
+    })[];
+    duplicates: {
+        article: ArticleInput;
+        reason: string;
+        existingId: string;
+    }[];
+}>;

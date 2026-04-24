@@ -10,8 +10,8 @@
  * - Ollama: certifique-se que está rodando em localhost:11434
  * - GLM: export GLM_API_KEY=sua-chave
  */
-import type { ArticleToAnalyze } from './types.js';
-import type { AnalysisResult } from './types.js';
+import type { ArticleToAnalyze } from './analyzer/types.js';
+import type { AnalysisResult } from './analyzer/types.js';
 export declare function analyze(article: ArticleToAnalyze): Promise<AnalysisResult & {
     provider: 'ollama' | 'glm' | 'mock';
 }>;

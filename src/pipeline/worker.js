@@ -21,8 +21,9 @@ import { fetchFolha } from '../collectors/folha.js';
 import { fetchUOL } from '../collectors/uol.js';
 import { fetchEstadao } from '../collectors/estadao.js';
 import { parseMetropolesHomepage } from '../collectors/metropoles.js';
+import { fetchAP, fetchAlJazeera, fetchFrance24, fetchDW, fetchRTE, fetchNBC } from '../collectors/foreign.js';
 import { contentHash, checkDuplicate } from '../dedup/deduplicator.js';
-import { analyzeWithGroq } from '../analyzer/groq-analyzer.js';
+import { analyzeWithOllamaCloudWithRetry } from '../analyzer/ollama-cloud-analyzer.js';
 import { filterByRelevance } from '../utils/content-filter.js';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || '';
@@ -59,6 +60,12 @@ export async function runPipeline() {
         'folha': fetchFolha,
         'uol': fetchUOL,
         'estadao': fetchEstadao,
+        'ap': fetchAP,
+        'aljazeera': fetchAlJazeera,
+        'france24': fetchFrance24,
+        'dw': fetchDW,
+        'rte': fetchRTE,
+        'nbc': fetchNBC,
         'metropoles': async () => {
             try {
                 const response = await fetch('https://www.metropoles.com', {
@@ -164,16 +171,16 @@ export async function runPipeline() {
         console.log(`   Analisando ${pendingArticles.length} artigos...`);
         for (const article of pendingArticles) {
             try {
-                // Tenta usar Groq primeiro, cai para mock se falhar
-                const analysis = await analyzeWithGroq({
+                // Usa Ollama Cloud primeiro, mock fallback se falhar
+                const analysis = await analyzeWithOllamaCloudWithRetry({
                     id: article.id,
                     title: article.title,
                     content: article.content || undefined,
                     source_id: article.source_id,
                 });
-                const modelUsed = analysis.used_groq ? 'groq-llama-3.3-70b' : 'mock-analyzer';
-                if (!analysis.used_groq && analysis.error) {
-                    console.log(`      ⚠️  Groq indisponível, usando mock: ${analysis.error}`);
+                const modelUsed = analysis.used_ollama_cloud ? 'ollama-cloud' : 'mock-analyzer';
+                if (!analysis.used_ollama_cloud && analysis.error) {
+                    console.log(`      ⚠️  Ollama Cloud indisponível, usando mock: ${analysis.error}`);
                 }
                 // Salva análise
                 const { error: analysisError } = await supabase
@@ -197,7 +204,7 @@ export async function runPipeline() {
                     .eq('id', article.id);
                 result.summary.totalAnalyzed++;
                 // Pequeno delay para não sobrecarregar API
-                if (analysis.used_groq) {
+                if (analysis.used_ollama_cloud) {
                     await new Promise(r => setTimeout(r, 200));
                 }
             }

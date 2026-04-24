@@ -69,7 +69,7 @@ async function testConnection() {
     console.log('\n3️⃣ Verificando fontes configuradas...');
     const { data: sources, error: sourcesError } = await supabase
         .from('sources')
-        .select('slug, name, type, active')
+        .select('id, slug, name, type, active')
         .order('slug');
     if (sourcesError) {
         console.log(`   ❌ Erro: ${sourcesError.message}`);

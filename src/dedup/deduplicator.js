@@ -1,3 +1,4 @@
+import { supabase } from '../db/supabase.js';
 import { createHash } from 'crypto';
 /**
  * Deduplicação em 3 camadas (versão sem DB — para testes locais).
@@ -61,4 +62,27 @@ function normalize(text) {
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .trim();
+}
+/**
+ * Deduplica artigos contra os existentes no banco de dados.
+ * Busca todos os artigos recentes (últimas 24h) para comparar.
+ */
+export async function deduplicate(articles) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: existingArticles, error } = await supabase
+        .from('raw_articles')
+        .select('id, url, content_hash, title')
+        .gte('collected_at', since);
+    if (error) {
+        console.error('Erro buscando artigos existentes:', error.message);
+        // Se falhar a consulta, retorna tudo como novo (não perde dados)
+        return {
+            newArticles: articles.map(a => ({
+                ...a,
+                content_hash: contentHash(a.title + (a.content ?? '')),
+            })),
+            duplicates: [],
+        };
+    }
+    return deduplicateBatch(articles, existingArticles ?? []);
 }

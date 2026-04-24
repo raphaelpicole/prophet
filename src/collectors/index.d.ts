@@ -10,6 +10,11 @@ import { parseCNNFeed, fetchCNN, CNN_SOURCE_ID, CNN_NAME, CNN_RSS_URL } from './
 import { parseICLHomepage, ICL_SOURCE_ID, ICL_NAME, ICL_URL } from './icl.js';
 import { parseMetropolesHomepage, METROPOLES_SOURCE_ID, METROPOLES_NAME, METROPOLES_URL } from './metropoles.js';
 export { type RawArticle };
+/**
+ * Coleta artigos de TODAS as fontes em paralelo.
+ * Retorna array combinado de todos os artigos coletados.
+ */
+export declare function collectAllSources(): Promise<RawArticle[]>;
 export declare const SOURCES: readonly [{
     readonly id: "g1";
     readonly name: "G1";
@@ -62,14 +67,5 @@ export declare const SOURCES: readonly [{
     readonly url: "https://www.metropoles.com";
 }];
 export declare const PARSERS: Record<string, (data: string) => RawArticle[]>;
-export declare const FETCHERS: {
-    g1: typeof fetchG1;
-    folha: typeof fetchFolha;
-    uol: typeof fetchUOL;
-    estadao: typeof fetchEstadao;
-    oglobo: typeof fetchOGlobo;
-    bbc: typeof fetchBBC;
-    reuters: typeof fetchReuters;
-    cnn: typeof fetchCNN;
-};
+export declare const FETCHERS: Record<string, () => Promise<RawArticle[]>>;
 export { parseG1Feed, fetchG1, G1_SOURCE_ID, G1_NAME, G1_RSS_URL, parseFolhaFeed, fetchFolha, FOLHA_SOURCE_ID, FOLHA_NAME, FOLHA_RSS_URL, parseUOLFeed, fetchUOL, UOL_SOURCE_ID, UOL_NAME, UOL_RSS_URL, parseEstadaoFeed, fetchEstadao, ESTADAO_SOURCE_ID, ESTADAO_NAME, ESTADAO_RSS_URL, parseOGloboFeed, fetchOGlobo, OGLOBO_SOURCE_ID, OGLOBO_NAME, OGLOBO_RSS_URL, parseBBCFeed, fetchBBC, BBC_SOURCE_ID, BBC_NAME, BBC_RSS_URL, parseReutersFeed, fetchReuters, REUTERS_SOURCE_ID, REUTERS_NAME, REUTERS_RSS_URL, parseCNNFeed, fetchCNN, CNN_SOURCE_ID, CNN_NAME, CNN_RSS_URL, parseICLHomepage, ICL_SOURCE_ID, ICL_NAME, ICL_URL, parseMetropolesHomepage, METROPOLES_SOURCE_ID, METROPOLES_NAME, METROPOLES_URL, };
