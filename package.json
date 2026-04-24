@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "@sentry/integrations": "^7.114.0",
     "@sentry/node": "^10.50.0",
