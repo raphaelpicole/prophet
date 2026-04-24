@@ -16,6 +16,33 @@ import { parseMetropolesHomepage, METROPOLES_SOURCE_ID, METROPOLES_NAME, METROPO
 
 export { type RawArticle };
 
+/**
+ * Coleta artigos de TODAS as fontes em paralelo.
+ * Retorna array combinado de todos os artigos coletados.
+ */
+export async function collectAllSources(): Promise<RawArticle[]> {
+  const results = await Promise.allSettled(
+    Object.entries(FETCHERS).map(async ([sourceId, fetcher]) => {
+      try {
+        const articles = await fetcher();
+        return articles;
+      } catch (err: any) {
+        console.error(`❌ Erro coletando ${sourceId}:`, err.message);
+        return [];
+      }
+    })
+  );
+
+  const allArticles: RawArticle[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allArticles.push(...result.value);
+    }
+  }
+
+  return allArticles;
+}
+
 // Source registry
 export const SOURCES = [
   { id: G1_SOURCE_ID, name: G1_NAME, type: 'rss', url: G1_RSS_URL },
@@ -45,7 +72,7 @@ export const PARSERS: Record<string, (data: string) => RawArticle[]> = {
 };
 
 // Fetchers for production (network)
-export const FETCHERS = {
+export const FETCHERS: Record<string, () => Promise<RawArticle[]>> = {
   [G1_SOURCE_ID]: fetchG1,
   [FOLHA_SOURCE_ID]: fetchFolha,
   [UOL_SOURCE_ID]: fetchUOL,
@@ -54,7 +81,27 @@ export const FETCHERS = {
   [BBC_SOURCE_ID]: fetchBBC,
   [REUTERS_SOURCE_ID]: fetchReuters,
   [CNN_SOURCE_ID]: fetchCNN,
-  // Scrapers would need fetch + parse
+  // Scrapers — implementação básica com fetch + parse
+  [ICL_SOURCE_ID]: async () => {
+    try {
+      const res = await fetch(ICL_URL);
+      if (!res.ok) return [];
+      const html = await res.text();
+      return parseICLHomepage(html);
+    } catch {
+      return [];
+    }
+  },
+  [METROPOLES_SOURCE_ID]: async () => {
+    try {
+      const res = await fetch(METROPOLES_URL);
+      if (!res.ok) return [];
+      const html = await res.text();
+      return parseMetropolesHomepage(html);
+    } catch {
+      return [];
+    }
+  },
 };
 
 // Re-exports individuais

@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withSentry } from '../../src/middleware/sentry.js';
-import { collectAllSources } from '../src/collectors/index.js';
-import { deduplicate } from '../src/dedup/deduplicator.js';
-import { analyzePending } from '../src/analyzer/index.js';
-import { groupArticlesIntoStories } from '../src/analyzer/grouper.js';
-import supabase from '../src/db/supabase.js';
+import { collectAllSources } from '../../src/collectors/index.js';
+import { deduplicate } from '../../src/dedup/deduplicator.js';
+import { analyzePending } from '../../src/analyzer/index.js';
+import { groupArticlesIntoStories } from '../../src/analyzer/grouper.js';
+import { supabase } from '../../src/db/supabase.js';
 
 /**
  * CRON ENTRY — Vercel chama a cada 15 min.
@@ -43,11 +43,11 @@ export default withSentry(async function handler(req: VercelRequest, res: Vercel
       log.push('💾 Inserindo no banco...');
       const { error } = await supabase.from('raw_articles').insert(
         newArticles.map(a => ({
-          source_id: a.source_id,
+          source_id: (a as any).source_id,
           title: a.title,
           url: a.url,
-          content: a.content,
-          published_at: a.published_at,
+          content: (a as any).content,
+          published_at: (a as any).published_at,
           content_hash: a.content_hash,
           status: 'pending',
         }))

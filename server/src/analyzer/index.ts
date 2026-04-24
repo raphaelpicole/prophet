@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import supabase from '../db/supabase.js';
+import { supabase } from '../db/supabase.js';
 import type { Analysis, Entity } from '../types.js';
 
 /**

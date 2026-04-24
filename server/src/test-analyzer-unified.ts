@@ -13,8 +13,8 @@
 
 import { analyzeWithOllama } from './analyzer/ollama-analyzer.js';
 import { analyzeWithGLM } from './analyzer/glm-analyzer.js';
-import type { ArticleToAnalyze } from './types.js';
-import type { AnalysisResult } from './types.js';
+import type { ArticleToAnalyze } from './analyzer/types.js';
+import type { AnalysisResult } from './analyzer/types.js';
 
 export async function analyze(
   article: ArticleToAnalyze
