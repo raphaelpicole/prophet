@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runPipeline } from '../src/pipeline/worker.js';
+import { withSentry } from '../src/middleware/sentry.js';
 
 /**
  * API /api/collect — executa o pipeline completo
@@ -9,7 +10,7 @@ import { runPipeline } from '../src/pipeline/worker.js';
  * 
  * Também chamado pelo Vercel Cron a cada 30 minutos
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withSentry(async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
@@ -36,4 +37,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: err.message,
     });
   }
-}
+});

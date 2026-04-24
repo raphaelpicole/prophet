@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../src/db/supabase.js';
+import { withSentry } from '../src/middleware/sentry.js';
 
 /**
  * API /api/stories — lista histórias com filtros
@@ -13,7 +14,7 @@ import { supabase } from '../src/db/supabase.js';
  *   - limit: número (default 50)
  *   - offset: número (default 0)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withSentry(async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   
@@ -76,4 +77,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       total: data?.length || 0,
     },
   });
-}
+});

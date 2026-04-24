@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { withSentry } from '../../src/middleware/sentry.js';
 import { collectAllSources } from '../src/collectors/index.js';
 import { deduplicate } from '../src/dedup/deduplicator.js';
 import { analyzePending } from '../src/analyzer/index.js';
@@ -18,7 +19,7 @@ import supabase from '../src/db/supabase.js';
  * Ponto forte: é uma pipeline atômica — se qualquer etapa falha,
  * as anteriores já persistiram. Não perde dados.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withSentry(async function handler(req: VercelRequest, res: VercelResponse) {
   // Segurança: só aceita POST ou chamada cron do Vercel
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -72,4 +73,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     log.push(`❌ Erro: ${err.message}`);
     return res.status(500).json({ success: false, log, error: err.message });
   }
-}
+});

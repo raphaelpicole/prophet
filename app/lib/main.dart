@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screens/radar_screen.dart';
 import 'presentation/screens/analysis_screen.dart';
@@ -14,9 +15,19 @@ import 'presentation/screens/paywall_screen.dart';
 import 'data/models/story.dart';
 import 'data/services/auth_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProphetApp());
+
+  const sentryDsn = 'https://85736454a17bf59cf91c6e07fb835342@o4511243234312192.ingest.us.sentry.io/4511275140579328';
+
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = sentryDsn;
+      options.tracesSampleRate = 1.0;
+      options.environment = kReleaseMode ? 'production' : 'development';
+    },
+    appRunner: () => runApp(const ProphetApp()),
+  );
 }
 
 class ProphetApp extends StatefulWidget {

@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../src/db/supabase.js';
+import { withSentry } from '../src/middleware/sentry.js';
 
 /**
  * GET /api/sources
  * Lista fontes de notícias com stats
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withSentry(async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   
@@ -23,4 +24,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(200).json({ sources: data || [] });
-}
+});

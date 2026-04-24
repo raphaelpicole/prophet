@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../src/db/supabase.js';
+import { withSentry } from '../src/middleware/sentry.js';
 
 /**
  * API /api/indicators — dashboard stats
@@ -7,7 +8,7 @@ import { supabase } from '../src/db/supabase.js';
  * GET /api/indicators
  * Retorna agregações para o dashboard
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default withSentry(async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   
   try {
@@ -56,4 +57,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
-}
+});
