@@ -4,29 +4,28 @@
   "buildCommand": "cd server && npm run build",
   "outputDirectory": "app/build/web",
   "functions": {
-    "server/dist/api/cron/collect.js": {
+    "api/collect.js": {
       "maxDuration": 300
     },
-    "server/dist/api/stories.js": {
+    "api/stories.js": {
       "maxDuration": 30
     },
-    "server/dist/api/sources.js": {
+    "api/sources.js": {
       "maxDuration": 10
     },
-    "server/dist/api/indicators.js": {
+    "api/indicators.js": {
       "maxDuration": 10
     },
-    "server/dist/api/story.js": {
+    "api/story.js": {
       "maxDuration": 10
     }
   },
   "routes": [
-    { "src": "/api/cron/collect", "dest": "server/dist/api/cron/collect.js" },
-    { "src": "/api/stories", "dest": "server/dist/api/stories.js" },
-    { "src": "/api/sources", "dest": "server/dist/api/sources.js" },
-    { "src": "/api/indicators", "dest": "server/dist/api/indicators.js" },
-    { "src": "/api/story", "dest": "server/dist/api/story.js" },
-    { "src": "/api/(.*)", "dest": "server/dist/api/$1.js" }
+    { "src": "/api/cron/collect", "dest": "api/collect.js" },
+    { "src": "/api/stories", "dest": "api/stories.js" },
+    { "src": "/api/sources", "dest": "api/sources.js" },
+    { "src": "/api/indicators", "dest": "api/indicators.js" },
+    { "src": "/api/story", "dest": "api/story.js" }
   ],
   "crons": [{
     "path": "/api/cron/collect",
