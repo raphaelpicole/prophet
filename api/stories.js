@@ -100,9 +100,9 @@ export default async function handler(req, res) {
             if (byStory[row.story_id].length < 3) byStory[row.story_id].push(row.article_id);
           }
           const allArticleIds = [...new Set(saData.map(r => r.article_id))];
-          const idsFilter = allArticleIds.map(id => `id=eq.${id}`).join('&');
+          const idsFilter = allArticleIds.join(',');
           const artsRes = await fetch(
-            `${SUPABASE_URL}/rest/v1/raw_articles?${idsFilter}&select=id,title,url,source_id,published_at,summary&order=published_at.desc`,
+            `${SUPABASE_URL}/rest/v1/raw_articles?id=in.(${idsFilter})&select=id,title,url,source_id,published_at,summary&order=published_at.desc`,
             { headers }
           );
           const articles = await artsRes.json();
