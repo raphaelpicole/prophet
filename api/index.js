@@ -282,6 +282,13 @@ export default async function handler(req, res) {
       const log = [];
       let totalCollected = 0;
 
+      // Buscar todos os sources primeiro para mapear slug → UUID
+      const { data: sourcesData } = await supabase.from('sources').select('id, slug');
+      const slugToUuid = {};
+      for (const s of (sourcesData || [])) {
+        slugToUuid[s.slug] = s.id;
+      }
+
       for (const src of (dbSources || [])) {
         let allArticles = [];
         const seenUrls = new Set();
@@ -315,9 +322,17 @@ export default async function handler(req, res) {
           let inserted = 0;
           let errors = 0;
           let errorMsgs = [];
+          
+          // Buscar UUID da fonte
+          const sourceUuid = slugToUuid[src.slug];
+          if (!sourceUuid) {
+            log.push(`${src.slug}: ERRO - UUID não encontrado para slug`);
+            continue;
+          }
+          
           for (const article of allArticles) {
             const { data, error } = await supabase.from('raw_articles').upsert({
-              source_id: article.source_id,
+              source_id: sourceUuid,
               title: article.title,
               url: article.url,
               published_at: article.published_at,
