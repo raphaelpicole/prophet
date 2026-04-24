@@ -314,6 +314,7 @@ export default async function handler(req, res) {
         if (allArticles.length > 0) {
           let inserted = 0;
           let errors = 0;
+          let errorMsgs = [];
           for (const article of allArticles) {
             const { data, error } = await supabase.from('raw_articles').upsert({
               source_id: article.source_id,
@@ -324,12 +325,12 @@ export default async function handler(req, res) {
             }, { onConflict: 'url' });
             if (error) {
               errors++;
-              console.error(`Insert error for ${article.url}:`, error.message);
+              if (errorMsgs.length < 3) errorMsgs.push(error.message);
             } else {
               inserted++;
             }
           }
-          log.push(`${src.slug}: inseridos ${inserted}, erros ${errors}`);
+          log.push(`${src.slug}: inseridos ${inserted}, erros ${errors}${errorMsgs.length > 0 ? ' (' + errorMsgs.join(', ') + ')' : ' (provavelmente duplicatas)'}`);
         }
       }
 
