@@ -1,9 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/subscription_service.dart';
-import 'paywall_screen.dart';
 
 /// Profile screen with real Firebase user data and two tabs: "Meu Plano" and "Histórico".
 class ProfileScreen extends StatefulWidget {
@@ -28,7 +26,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   Map<String, dynamic>? _subscriptionStatus;
   bool _loadingStatus = true;
 
-  User? get _user => widget.authService.currentUser;
+  String? get _uid => widget.authService.uid;
+  String? get _email => widget.authService.email;
+  String? get _name => widget.authService.displayName;
+  String? get _photoURL => widget.authService.photoURL;
 
   @override
   void initState() {
@@ -179,14 +180,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   Widget build(BuildContext context) {
     final isPro = widget.authService.plan == 'pro';
-    final user = _user;
-
     return Scaffold(
       backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(user),
+            _buildHeader(),
             TabBar(
               controller: _tabController,
               indicatorColor: AppTheme.primary,
@@ -213,10 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildHeader(User? user) {
-    final photoUrl = user?.photoURL;
-    final displayName = user?.displayName;
-    final email = user?.email;
+  Widget _buildHeader() {
+    final photoUrl = _photoURL;
+    final displayName = _name;
+    final email = _email;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -266,7 +265,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   )
                 else
                   Text(
-                    widget.authService.uid ?? 'Usuário',
+                    _uid ?? 'Usuário',
                     style: const TextStyle(
                       color: AppTheme.textoSec,
                       fontSize: 11,
@@ -336,11 +335,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildAccountActions() {
-    final user = _user;
-    final isEmailPassword = user?.providerData.any(
-          (p) => p.providerId == 'password',
-        ) ??
-        false;
+    final isEmailPassword = _email != null;
 
     return Container(
       padding: const EdgeInsets.all(20),

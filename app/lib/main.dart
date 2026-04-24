@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'core/theme/app_theme.dart';
@@ -17,15 +16,6 @@ import 'data/services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyB-hRG0lUYwPdiR-r5_-X5vd6hDCaGaVSU",
-      appId: "1:1075292745271:web:4a18cae0494ba86e7d19b2",
-      messagingSenderId: "1075292745271",
-      projectId: "primeapp-46b95",
-      authDomain: "primeapp-46b95.firebaseapp.com",
-    ),
-  );
   runApp(const ProphetApp());
 }
 

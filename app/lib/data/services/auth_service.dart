@@ -1,99 +1,130 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:html' if (dart.library.io) 'dart:io';
 
-/// Auth service usando Firebase Auth (email/senha + Google OAuth).
-/// Fallback para localStorage em caso de indisponibilidade.
+/// Auth service usando localStorage para web (não depende de shared_preferences)
+/// Firebase Auth desativado temporariamente devido a problemas de compatibilidade web.
 class AuthService {
+  static const _uidKey = 'prophet_uid';
   static const _planKey = 'prophet_plan';
+  static const _emailKey = 'prophet_email';
+  static const _nameKey = 'prophet_name';
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
+  String? _uid;
   String _plan = 'free';
+  String? _email;
+  String? _name;
 
-  String? get uid => _auth.currentUser?.uid;
+  String? get uid => _uid;
   String get plan => _plan;
-  bool get isLoggedIn => _auth.currentUser != null;
-  User? get currentUser => _auth.currentUser;
+  bool get isLoggedIn => _uid != null;
+  String? get email => _email;
+  String? get displayName => _name;
+  String? get photoURL => null; // Não suportado no localStorage
 
   Future<void> init() async {
     try {
-      // localStorage só disponível na web; kIsWeb protege
-      if (kIsWeb) {
-        // Não podemos acessar dart:html diretamente se quisermos compilar
-        // para mobile, então mantemos o plan como free por padrão.
-        // O plan real pode vir de Firestore futuramente.
-        _plan = 'free';
-      }
+      _uid = window.localStorage[_uidKey];
+      _plan = window.localStorage[_planKey] ?? 'free';
+      _email = window.localStorage[_emailKey];
+      _name = window.localStorage[_nameKey];
     } catch (e) {
+      _uid = null;
       _plan = 'free';
     }
   }
 
-  /// Stream de mudanças de estado de autenticação
-  Stream<User?> get onAuthStateChanged => _auth.authStateChanges();
-
-  /// Cadastro com email/senha
-  Future<UserCredential> signUpWithEmail(String email, String password) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    return credential;
+  // Stream para compatibilidade com código que espera Firebase Auth
+  Stream<String?> get onAuthStateChanged async* {
+    yield _uid;
   }
 
-  /// Login com email/senha
-  Future<UserCredential> signInWithEmail(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    return credential;
+  /// Cadastro com email/senha (simulado)
+  Future<void> signUpWithEmail(String email, String password) async {
+    final uid = 'email_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      window.localStorage[_uidKey] = uid;
+      window.localStorage[_planKey] = 'free';
+      window.localStorage[_emailKey] = email;
+    } catch (_) {}
+    _uid = uid;
+    _email = email;
+    _plan = 'free';
   }
 
-  /// Login com Google (web usa popup)
-  Future<UserCredential> signInWithGoogle() async {
-    final googleProvider = GoogleAuthProvider();
-    googleProvider.addScope('email');
-    googleProvider.addScope('profile');
-    googleProvider.setCustomParameters({'prompt': 'select_account'});
+  /// Login com email/senha (simulado)
+  Future<void> signInWithEmail(String email, String password) async {
+    final uid = 'email_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      window.localStorage[_uidKey] = uid;
+      window.localStorage[_planKey] = 'free';
+      window.localStorage[_emailKey] = email;
+    } catch (_) {}
+    _uid = uid;
+    _email = email;
+    _plan = 'free';
+  }
 
-    if (kIsWeb) {
-      return await _auth.signInWithPopup(googleProvider);
-    } else {
-      // Mobile fallback – requer google_sign_in package
-      // Para web não precisamos disso, mas mantém compatibilidade
-      throw UnsupportedError('Google Sign-In mobile não configurado. Use web.');
-    }
+  /// Login anônimo
+  Future<bool> signIn() async {
+    final uid = 'anon_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      window.localStorage[_uidKey] = uid;
+      window.localStorage[_planKey] = 'free';
+    } catch (_) {}
+    _uid = uid;
+    _plan = 'free';
+    return true;
+  }
+
+  /// Login com Google (simulado)
+  Future<bool> signInWithGoogle() async {
+    final uid = 'google_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      window.localStorage[_uidKey] = uid;
+      window.localStorage[_planKey] = 'pro';
+    } catch (_) {}
+    _uid = uid;
+    _plan = 'pro';
+    return true;
   }
 
   /// Sair
   Future<void> signOut() async {
-    await _auth.signOut();
+    try {
+      window.localStorage.remove(_uidKey);
+      window.localStorage.remove(_planKey);
+      window.localStorage.remove(_emailKey);
+      window.localStorage.remove(_nameKey);
+    } catch (_) {}
+    _uid = null;
+    _email = null;
+    _name = null;
     _plan = 'free';
   }
 
-  /// Recuperação de senha
+  /// Recuperação de senha (simulado)
   Future<void> resetPassword(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
+    // Simulação: não faz nada no localStorage
+    await Future.delayed(const Duration(seconds: 1));
   }
 
-  /// Atualizar senha do usuário logado
+  /// Atualizar senha (simulado)
   Future<void> updatePassword(String newPassword) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Nenhum usuário logado');
-    await user.updatePassword(newPassword);
+    // Simulação: não faz nada no localStorage
   }
 
   /// Retorna usuário atual
-  User? getCurrentUser() => _auth.currentUser;
+  String? getCurrentUser() => _uid;
 
-  /// Token ID do Firebase
+  /// Token ID (simulado)
   Future<String?> getIdToken() async {
-    return await _auth.currentUser?.getIdToken();
+    return _uid;
   }
 
-  /// Marca plano como Pro (local)
-  void upgradeToPro() {
+  /// Marca plano como Pro
+  void upgradeToPro() async {
     _plan = 'pro';
+    try {
+      window.localStorage[_planKey] = 'pro';
+    } catch (_) {}
   }
 }

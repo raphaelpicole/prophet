@@ -45,16 +45,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     try {
-      final credential = await widget.authService.signUpWithEmail(
+      await widget.authService.signUpWithEmail(
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );
-
-      // Atualizar displayName se o usuário informou nome
-      final name = _nameCtrl.text.trim();
-      if (name.isNotEmpty && credential.user != null) {
-        await credential.user!.updateDisplayName(name);
-      }
 
       widget.onLoginSuccess(widget.authService);
     } catch (e) {
