@@ -143,14 +143,50 @@ export default async function handler(req, res) {
 
     if (path === '/api/stories' || path === '/api/stories/') {
       const { limit = '50', offset = '0' } = req.query;
-      const { data, error } = await supabase
-        .from('v_story_indicators')
+      
+      // Fallback: se a view não existir, busca stories direto + contagem de artigos
+      try {
+        const { data, error } = await supabase
+          .from('v_story_indicators')
+          .select('*')
+          .eq('archived', false)
+          .order('updated_at', { ascending: false })
+          .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+        
+        if (!error && data) {
+          return res.status(200).json({ stories: data, pagination: { limit: parseInt(limit), offset: parseInt(offset) } });
+        }
+      } catch (e) {
+        console.log('v_story_indicators não disponível, usando fallback');
+      }
+      
+      // Fallback: buscar stories e contar artigos manualmente
+      const { data: stories, error } = await supabase
+        .from('stories')
         .select('*')
         .eq('archived', false)
         .order('updated_at', { ascending: false })
         .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+      
       if (error) throw error;
-      return res.status(200).json({ stories: data || [], pagination: { limit: parseInt(limit), offset: parseInt(offset) } });
+      
+      // Busca artigos relacionados
+      if (stories && stories.length > 0) {
+        const storyIds = stories.map(s => s.id);
+        const { data: relations } = await supabase
+          .from('story_articles')
+          .select('story_id')
+          .in('story_id', storyIds);
+        
+        const articleCounts = {};
+        for (const r of (relations || [])) {
+          articleCounts[r.story_id] = (articleCounts[r.story_id] || 0) + 1;
+        }
+        
+        stories.forEach(s => s.article_count = articleCounts[s.id] || 0);
+      }
+      
+      return res.status(200).json({ stories: stories || [], pagination: { limit: parseInt(limit), offset: parseInt(offset) } });
     }
 
     if (path === '/api/story' || path === '/api/story/') {
