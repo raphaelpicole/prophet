@@ -93,12 +93,12 @@ const SCRAPER_CONFIGS = {
   },
   'estadao': {
     url: 'https://www.estadao.com.br',
-    selector: /href="(https:\/\/www\.estadao\.com\.br\/[^"]*\/(?:economia|politica|brasil|internacional|opiniao)\/[^"]*?)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
+    selector: /href="(https:\/\/www\.estadao\.com\.br\/[^"]*\/)"[^>]*class="headline"[^>]*>([^<]{20,120})/gi,
     baseUrl: ''
   },
   'oglobo': {
     url: 'https://oglobo.globo.com',
-    selector: /href="(https:\/\/oglobo\.globo\.com\/[^"]*?\.ghtml)"[^>]*[^>]*>(?:[^<]*<[^>]+>)*\s*([^<]{20,120})/gi,
+    selector: /href="(https:\/\/oglobo\.globo\.com\/[^"]*\.ghtml)"[^>]*class="franja-colunistas__link"[^>]*>([^<]{20,120})/gi,
     baseUrl: ''
   },
   'metropoles': {
