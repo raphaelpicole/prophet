@@ -14,6 +14,16 @@ import { parseCNNFeed, fetchCNN, CNN_SOURCE_ID, CNN_NAME, CNN_RSS_URL } from './
 import { parseICLHomepage, ICL_SOURCE_ID, ICL_NAME, ICL_URL } from './icl.js';
 import { parseMetropolesHomepage, METROPOLES_SOURCE_ID, METROPOLES_NAME, METROPOLES_URL } from './metropoles.js';
 
+// Foreign scrapers (sem RSS)
+import {
+  fetchAPHTML, AP_SOURCE_ID, AP_NAME, AP_URL,
+  fetchAlJazeeraHTML, ALJAZEERA_SOURCE_ID, ALJAZEERA_NAME, ALJAZEERA_URL,
+  fetchDWHTML, DW_SOURCE_ID, DW_NAME, DW_URL,
+  fetchFrance24HTML, FRANCE24_SOURCE_ID, FRANCE24_NAME, FRANCE24_URL,
+  fetchRTEHTML, RTE_SOURCE_ID, RTE_NAME, RTE_URL,
+  fetchNBCHTML, NBC_SOURCE_ID, NBC_NAME, NBC_URL,
+} from './foreign-scraper.js';
+
 export { type RawArticle };
 
 /**
@@ -102,6 +112,13 @@ export const FETCHERS: Record<string, () => Promise<RawArticle[]>> = {
       return [];
     }
   },
+  // Foreign scrapers (HTML — sem RSS)
+  [AP_SOURCE_ID]: fetchAPHTML,
+  [ALJAZEERA_SOURCE_ID]: fetchAlJazeeraHTML,
+  [DW_SOURCE_ID]: fetchDWHTML,
+  [FRANCE24_SOURCE_ID]: fetchFrance24HTML,
+  [RTE_SOURCE_ID]: fetchRTEHTML,
+  [NBC_SOURCE_ID]: fetchNBCHTML,
 };
 
 // Re-exports individuais
