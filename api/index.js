@@ -88,53 +88,63 @@ function similarTitles(t1, t2) {
 const SCRAPER_CONFIGS = {
   'estadao': {
     url: 'https://www.estadao.com.br',
-    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*\.shtml)"[^>]*>(.*?)<\/a>/gi,
-    baseUrl: 'https://www.estadao.com.br'
+    selector: /href="(https:\/\/www\.estadao\.com\.br\/[^"]*\/(?:economia|politica|brasil|internacional|opiniao)\/[^"]*?)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
+    baseUrl: ''
   },
   'oglobo': {
     url: 'https://oglobo.globo.com',
-    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*\.html)"[^>]*>(.*?)<\/a>/gi,
-    baseUrl: 'https://oglobo.globo.com'
+    selector: /href="(https:\/\/oglobo\.globo\.com\/[^"]*?\.ghtml)"[^>]*[^>]*>(?:[^<]*<[^>]+>)*\s*([^<]{20,120})/gi,
+    baseUrl: ''
   },
   'metropoles': {
     url: 'https://www.metropoles.com',
-    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    selector: /href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.metropoles.com'
   },
   'icl': {
     url: 'https://www.iclinic.com.br/noticias',
-    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    selector: /href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.iclinic.com.br'
   },
   'reuters': {
-    url: 'https://www.reuters.com',
-    selector: /<a[^>]+href="(\/[^"]*\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    url: 'https://www.reuters.com/world/',
+    selector: /href="(\/world\/[^"]*\d{4}[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.reuters.com'
   },
   'cnn': {
-    url: 'https://edition.cnn.com',
-    selector: /<a[^>]+href="(\/\d{4}\/[^"]*\.html)"[^>]*>(.*?)<\/a>/gi,
+    url: 'https://edition.cnn.com/world',
+    selector: /href="(\/\d{4}\/[^"]*?\.html)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://edition.cnn.com'
   },
   'ap': {
     url: 'https://apnews.com',
-    selector: /<a[^>]+href="(\/article\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    selector: /href="(\/article\/[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://apnews.com'
   },
   'aljazeera': {
-    url: 'https://www.aljazeera.com',
-    selector: /<a[^>]+href="(\/news\/\d{4}\/[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    url: 'https://www.aljazeera.com/news/',
+    selector: /href="(\/news\/\d{4}\/[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.aljazeera.com'
   },
   'france24': {
-    url: 'https://www.france24.com',
-    selector: /<a[^>]+href="(\/en\/[^"]*\d{4}[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    url: 'https://www.france24.com/en/',
+    selector: /href="(\/en\/[^"]*\d{4}[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.france24.com'
   },
   'dw': {
-    url: 'https://www.dw.com',
-    selector: /<a[^>]+href="(\/en\/[^"]*\d{4}[^"]*)"[^>]*>(.*?)<\/a>/gi,
+    url: 'https://www.dw.com/en/top-stories/s-9097',
+    selector: /href="(\/en\/[^"]*[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
     baseUrl: 'https://www.dw.com'
+  },
+  'rte': {
+    url: 'https://www.rte.ie/news/',
+    selector: /href="(\/news\/[^"]*\d{4}[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
+    baseUrl: 'https://www.rte.ie'
+  },
+  'nbc': {
+    url: 'https://www.nbcnews.com/world',
+    selector: /href="(\/[^"]*\/[^"]*\d{4}[^"]*)"[^>]*>(?:\s*<[^>]+>)*\s*([^<]{20,120})/gi,
+    baseUrl: 'https://www.nbcnews.com'
   },
 };
 
