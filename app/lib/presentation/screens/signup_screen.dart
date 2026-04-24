@@ -1,41 +1,42 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
-import 'signup_screen.dart';
-import 'forgot_password_screen.dart';
 
-typedef OnLoginSuccess = void Function(AuthService auth);
-
-class LoginScreen extends StatefulWidget {
+class SignUpScreen extends StatefulWidget {
   final AuthService authService;
-  final OnLoginSuccess onLoginSuccess;
+  final void Function(AuthService auth) onLoginSuccess;
 
-  const LoginScreen({
+  const SignUpScreen({
     super.key,
     required this.authService,
     required this.onLoginSuccess,
   });
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignUpScreenState extends State<SignUpScreen> {
+  final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   String? _error;
   bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _signInWithEmail() async {
+  Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -44,27 +45,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await widget.authService.signInWithEmail(
+      final credential = await widget.authService.signUpWithEmail(
         _emailCtrl.text.trim(),
         _passwordCtrl.text.trim(),
       );
-      widget.onLoginSuccess(widget.authService);
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = _parseAuthError(e);
-      });
-    }
-  }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+      // Atualizar displayName se o usuário informou nome
+      final name = _nameCtrl.text.trim();
+      if (name.isNotEmpty && credential.user != null) {
+        await credential.user!.updateDisplayName(name);
+      }
 
-    try {
-      await widget.authService.signInWithGoogle();
       widget.onLoginSuccess(widget.authService);
     } catch (e) {
       setState(() {
@@ -76,83 +67,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _parseAuthError(dynamic error) {
     final msg = error.toString().toLowerCase();
+    if (msg.contains('email-already-in-use')) return 'Este email já está em uso.';
     if (msg.contains('invalid-email')) return 'Email inválido.';
-    if (msg.contains('user-not-found') || msg.contains('invalid-credential')) {
-      return 'Email ou senha incorretos.';
-    }
-    if (msg.contains('wrong-password')) return 'Senha incorreta.';
-    if (msg.contains('too-many-requests')) {
-      return 'Muitas tentativas. Tente novamente mais tarde.';
-    }
-    if (msg.contains('network-request-failed')) {
-      return 'Sem conexão com a internet.';
-    }
-    return 'Erro ao entrar: $error';
-  }
-
-  void _goToSignUp() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SignUpScreen(
-          authService: widget.authService,
-          onLoginSuccess: widget.onLoginSuccess,
-        ),
-      ),
-    );
-  }
-
-  void _goToForgotPassword() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ForgotPasswordScreen(),
-      ),
-    );
+    if (msg.contains('weak-password')) return 'Senha muito fraca. Use pelo menos 6 caracteres.';
+    if (msg.contains('network-request-failed')) return 'Sem conexão com a internet.';
+    return 'Erro ao criar conta: $error';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bg,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: BackButton(color: AppTheme.textoSec),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
           child: Form(
             key: _formKey,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 40),
-                // Logo
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.visibility,
-                    color: AppTheme.primary,
-                    size: 56,
-                  ),
-                ),
-                const SizedBox(height: 24),
                 const Text(
-                  'Prophet',
+                  'Criar conta',
                   style: TextStyle(
                     color: AppTheme.texto,
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Inteligência de sinais globais',
-                  style: TextStyle(color: AppTheme.textoSec, fontSize: 15),
+                  'Preencha os dados para se cadastrar',
+                  style: TextStyle(color: AppTheme.textoSec, fontSize: 14),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
-                // Error
                 if (_error != null) ...[
                   Container(
                     width: double.infinity,
@@ -172,6 +125,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+
+                // Nome (opcional)
+                TextFormField(
+                  controller: _nameCtrl,
+                  style: const TextStyle(color: AppTheme.texto),
+                  decoration: InputDecoration(
+                    hintText: 'Nome (opcional)',
+                    hintStyle: const TextStyle(color: AppTheme.textoSec),
+                    prefixIcon:
+                        const Icon(Icons.person_outline, color: AppTheme.textoSec),
+                    filled: true,
+                    fillColor: AppTheme.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // Email
                 TextFormField(
@@ -234,28 +206,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 8),
-
-                // Forgot password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _goToForgotPassword,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.primary,
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: const Text('Esqueci minha senha'),
-                  ),
-                ),
                 const SizedBox(height: 16),
 
-                // Entrar
+                // Confirm password
+                TextFormField(
+                  controller: _confirmCtrl,
+                  obscureText: _obscureConfirm,
+                  style: const TextStyle(color: AppTheme.texto),
+                  decoration: InputDecoration(
+                    hintText: 'Confirmar senha',
+                    hintStyle: const TextStyle(color: AppTheme.textoSec),
+                    prefixIcon:
+                        const Icon(Icons.lock_outline, color: AppTheme.textoSec),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppTheme.textoSec,
+                      ),
+                      onPressed: () => setState(
+                        () => _obscureConfirm = !_obscureConfirm,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: AppTheme.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Confirme a senha';
+                    if (v != _passwordCtrl.text) return 'As senhas não coincidem';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 32),
+
+                // Criar conta
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: _loading ? null : _signInWithEmail,
+                    onPressed: _loading ? null : _signUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
@@ -273,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text(
-                            'Entrar',
+                            'Criar conta',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -281,71 +275,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Divider
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: AppTheme.surface,
-                        thickness: 1,
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'ou',
-                        style: TextStyle(color: AppTheme.textoSec, fontSize: 13),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: AppTheme.surface,
-                        thickness: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Google
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: _loading ? null : _signInWithGoogle,
-                    icon: const Text('🔵', style: TextStyle(fontSize: 18)),
-                    label: const Text(
-                      'Entrar com Google',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.texto,
-                      side: BorderSide(color: AppTheme.surface),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 24),
 
-                // Criar conta
+                // Já tem conta
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Não tem conta? ',
+                      'Já tem conta? ',
                       style: TextStyle(color: AppTheme.textoSec),
                     ),
                     GestureDetector(
-                      onTap: _goToSignUp,
+                      onTap: () => Navigator.pop(context),
                       child: const Text(
-                        'Criar conta',
+                        'Entrar',
                         style: TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.w600,
@@ -354,7 +297,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
               ],
             ),
           ),

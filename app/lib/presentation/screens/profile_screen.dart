@@ -1,10 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/subscription_service.dart';
 import 'paywall_screen.dart';
 
-/// Profile screen with two tabs: "Meu Plano" and "Histórico".
+/// Profile screen with real Firebase user data and two tabs: "Meu Plano" and "Histórico".
 class ProfileScreen extends StatefulWidget {
   final AuthService authService;
   final VoidCallback onUpgrade;
@@ -26,6 +27,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Map<String, dynamic>? _subscriptionStatus;
   bool _loadingStatus = true;
+
+  User? get _user => widget.authService.currentUser;
 
   @override
   void initState() {
@@ -50,16 +53,140 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  Future<void> _changePassword() async {
+    final ctrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool obscure = true;
+    bool obscureConfirm = true;
+    String? error;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx2, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surface,
+              title: const Text(
+                'Alterar senha',
+                style: TextStyle(color: AppTheme.texto),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (error != null) ...[
+                    Text(
+                      error!,
+                      style: const TextStyle(color: AppTheme.alerta, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  TextField(
+                    controller: ctrl,
+                    obscureText: obscure,
+                    style: const TextStyle(color: AppTheme.texto),
+                    decoration: InputDecoration(
+                      hintText: 'Nova senha',
+                      hintStyle: const TextStyle(color: AppTheme.textoSec),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscure ? Icons.visibility_off : Icons.visibility,
+                          color: AppTheme.textoSec,
+                        ),
+                        onPressed: () => setStateDialog(() => obscure = !obscure),
+                      ),
+                      filled: true,
+                      fillColor: AppTheme.card,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmCtrl,
+                    obscureText: obscureConfirm,
+                    style: const TextStyle(color: AppTheme.texto),
+                    decoration: InputDecoration(
+                      hintText: 'Confirmar nova senha',
+                      hintStyle: const TextStyle(color: AppTheme.textoSec),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: AppTheme.textoSec,
+                        ),
+                        onPressed: () => setStateDialog(
+                          () => obscureConfirm = !obscureConfirm,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: AppTheme.card,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (ctrl.text.length < 6) {
+                      setStateDialog(
+                        () => error = 'Mínimo 6 caracteres',
+                      );
+                      return;
+                    }
+                    if (ctrl.text != confirmCtrl.text) {
+                      setStateDialog(
+                        () => error = 'As senhas não coincidem',
+                      );
+                      return;
+                    }
+                    try {
+                      await widget.authService.updatePassword(ctrl.text.trim());
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Senha atualizada com sucesso!'),
+                        ),
+                      );
+                    } catch (e) {
+                      setStateDialog(() => error = 'Erro: $e');
+                    }
+                  },
+                  child: const Text('Alterar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    ctrl.dispose();
+    confirmCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPro = widget.authService.plan == 'pro';
+    final user = _user;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(user),
             TabBar(
               controller: _tabController,
               indicatorColor: AppTheme.primary,
@@ -86,34 +213,67 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(User? user) {
+    final photoUrl = user?.photoURL;
+    final displayName = user?.displayName;
+    final email = user?.email;
+
     return Container(
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
+          // Avatar
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: AppTheme.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
+              image: photoUrl != null
+                  ? DecorationImage(
+                      image: NetworkImage(photoUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: const Icon(Icons.person, color: AppTheme.primary, size: 28),
+            child: photoUrl == null
+                ? const Icon(Icons.person, color: AppTheme.primary, size: 28)
+                : null,
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Meu Perfil', style: TextStyle(
-                  color: AppTheme.texto, fontSize: 18, fontWeight: FontWeight.bold,
-                )),
-                const SizedBox(height: 2),
                 Text(
-                  widget.authService.uid ?? 'Usuário',
-                  style: const TextStyle(color: AppTheme.textoSec, fontSize: 11),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  displayName ?? 'Meu Perfil',
+                  style: const TextStyle(
+                    color: AppTheme.texto,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                const SizedBox(height: 2),
+                if (email != null)
+                  Text(
+                    email,
+                    style: const TextStyle(
+                      color: AppTheme.textoSec,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  Text(
+                    widget.authService.uid ?? 'Usuário',
+                    style: const TextStyle(
+                      color: AppTheme.textoSec,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
@@ -161,11 +321,67 @@ class _ProfileScreenState extends State<ProfileScreen>
           _usageCard(isPro),
           const SizedBox(height: 16),
 
+          // Account actions
+          _buildAccountActions(),
+          const SizedBox(height: 16),
+
           // Upgrade CTA (if free)
           if (!isPro) _upgradeCTA(),
           if (isPro) _proRenewalCard(),
 
           const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountActions() {
+    final user = _user;
+    final isEmailPassword = user?.providerData.any(
+          (p) => p.providerId == 'password',
+        ) ??
+        false;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '⚙️ Conta',
+            style: TextStyle(
+              color: AppTheme.texto,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isEmailPassword)
+            ListTile(
+              leading: const Icon(Icons.lock_outline, color: AppTheme.textoSec),
+              title: const Text('Alterar senha', style: TextStyle(color: AppTheme.texto)),
+              trailing: const Icon(Icons.chevron_right, color: AppTheme.textoSec),
+              onTap: _changePassword,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: AppTheme.alerta),
+            title: const Text('Sair', style: TextStyle(color: AppTheme.alerta)),
+            trailing: const Icon(Icons.chevron_right, color: AppTheme.textoSec),
+            onTap: () async {
+              await widget.authService.signOut();
+              if (context.mounted) {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
+            },
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
         ],
       ),
     );
@@ -423,7 +639,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildHistoryTab() {
-    // Placeholder history — could connect to Firestore later
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
