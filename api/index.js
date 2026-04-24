@@ -89,28 +89,23 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
       }
 
-      // Coleta manual
-      const sources = [
-        { id: 'g1', url: 'https://g1.globo.com/rss/g1/' },
-        { id: 'folha', url: 'https://feeds.folha.uol.com.br/emais/rss091.xml' },
-        { id: 'uol', url: 'https://noticias.uol.com.br/rss.xml' },
-        { id: 'estadao', url: 'https://www.estadao.com.br/feed/rss' },
-        { id: 'oglobo', url: 'https://oglobo.globo.com/rss' },
-        { id: 'bbc', url: 'https://feeds.bbci.co.uk/news/rss.xml' },
-        { id: 'cnn', url: 'https://rss.cnn.com/rss/edition.rss' },
-        { id: 'reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
-      ];
+      // Coleta do banco de fontes
+      const { data: dbSources, error: dbError } = await supabase.from('sources').select('*').eq('active', true);
+      if (dbError) throw dbError;
 
       const log = [];
       let totalCollected = 0;
 
-      for (const src of sources) {
-        const articles = await fetchRSS(src.url, src.id);
+      for (const src of (dbSources || [])) {
+        if (!src.rss_url) {
+          log.push(`${src.slug}: sem RSS URL`);
+          continue;
+        }
+        const articles = await fetchRSS(src.rss_url, src.slug);
         totalCollected += articles.length;
-        log.push(`${src.id}: ${articles.length} artigos`);
+        log.push(`${src.slug}: ${articles.length} artigos`);
 
         if (articles.length > 0) {
-          // Insere no banco (ignora duplicados por URL)
           for (const article of articles) {
             await supabase.from('raw_articles').upsert({
               source_id: article.source_id,
