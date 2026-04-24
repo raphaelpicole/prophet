@@ -86,6 +86,7 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
           scale: _scaleAnimation.value,
           child: Container(
             width: 150,
+            height: 145,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -116,6 +117,7 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -129,7 +131,6 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
                     size: 22,
                   ),
                 ),
-                const SizedBox(height: 12),
                 Text(
                   '$_displayValue',
                   style: const TextStyle(
@@ -139,7 +140,6 @@ class _KpiCardState extends State<KpiCard> with SingleTickerProviderStateMixin {
                     letterSpacing: -1,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Row(
                   children: [
                     Expanded(
