@@ -10,7 +10,6 @@ server/node_modules/
 
 # --- Environment & Secrets ---
 .env
-.env.*
 .env.local
 .env.production
 *.pem

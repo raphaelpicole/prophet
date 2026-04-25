@@ -18,16 +18,20 @@ import 'data/services/auth_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  const sentryDsn = 'https://85736454a17bf59cf91c6e07fb835342@o4511243234312192.ingest.us.sentry.io/4511275140579328';
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
 
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = sentryDsn;
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
       options.tracesSampleRate = 1.0;
       options.environment = kReleaseMode ? 'production' : 'development';
     },
-    appRunner: () => runApp(const ProphetApp()),
-  );
+      appRunner: () => runApp(const ProphetApp()),
+    );
+  } else {
+    runApp(const ProphetApp());
+  }
 }
 
 class ProphetApp extends StatefulWidget {

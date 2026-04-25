@@ -5,8 +5,8 @@
     "@sentry/node": "^10.50.0",
     "@supabase/supabase-js": "^2.103.3",
     "cheerio": "^1.0.0",
-    "groq-sdk": "^1.1.2",
-    "openai": "^6.34.0"
+    "groq-sdk": "^0.3.0",
+    "openai": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
