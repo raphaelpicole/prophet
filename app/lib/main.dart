@@ -97,7 +97,12 @@ class _ProphetAppState extends State<ProphetApp> {
             builder: (_) => ArticleDetailScreen(story: story),
           );
         }
-        if (settings.name == '/admin' && kReleaseMode) {
+        if (settings.name == '/admin') {
+          if (kReleaseMode) {
+            return MaterialPageRoute(
+              builder: (_) => _buildMainShell(),
+            );
+          }
           return MaterialPageRoute(
             builder: (_) => const AdminScreen(),
           );

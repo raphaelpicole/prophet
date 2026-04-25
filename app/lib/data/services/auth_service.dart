@@ -1,6 +1,6 @@
-import 'dart:html' if (dart.library.io) 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Auth service usando localStorage para web (não depende de shared_preferences)
+/// Auth service usando shared_preferences (compatível com Flutter Web/WASM).
 /// Firebase Auth desativado temporariamente devido a problemas de compatibilidade web.
 class AuthService {
   static const _uidKey = 'prophet_uid';
@@ -22,13 +22,16 @@ class AuthService {
 
   Future<void> init() async {
     try {
-      _uid = window.localStorage[_uidKey];
-      _plan = window.localStorage[_planKey] ?? 'free';
-      _email = window.localStorage[_emailKey];
-      _name = window.localStorage[_nameKey];
+      final prefs = await SharedPreferences.getInstance();
+      _uid = prefs.getString(_uidKey);
+      _plan = prefs.getString(_planKey) ?? 'free';
+      _email = prefs.getString(_emailKey);
+      _name = prefs.getString(_nameKey);
     } catch (e) {
       _uid = null;
       _plan = 'free';
+      _email = null;
+      _name = null;
     }
   }
 
@@ -41,9 +44,10 @@ class AuthService {
   Future<void> signUpWithEmail(String email, String password) async {
     final uid = 'email_${DateTime.now().millisecondsSinceEpoch}';
     try {
-      window.localStorage[_uidKey] = uid;
-      window.localStorage[_planKey] = 'free';
-      window.localStorage[_emailKey] = email;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_uidKey, uid);
+      await prefs.setString(_planKey, 'free');
+      await prefs.setString(_emailKey, email);
     } catch (_) {}
     _uid = uid;
     _email = email;
@@ -54,9 +58,10 @@ class AuthService {
   Future<void> signInWithEmail(String email, String password) async {
     final uid = 'email_${DateTime.now().millisecondsSinceEpoch}';
     try {
-      window.localStorage[_uidKey] = uid;
-      window.localStorage[_planKey] = 'free';
-      window.localStorage[_emailKey] = email;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_uidKey, uid);
+      await prefs.setString(_planKey, 'free');
+      await prefs.setString(_emailKey, email);
     } catch (_) {}
     _uid = uid;
     _email = email;
@@ -67,8 +72,9 @@ class AuthService {
   Future<bool> signIn() async {
     final uid = 'anon_${DateTime.now().millisecondsSinceEpoch}';
     try {
-      window.localStorage[_uidKey] = uid;
-      window.localStorage[_planKey] = 'free';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_uidKey, uid);
+      await prefs.setString(_planKey, 'free');
     } catch (_) {}
     _uid = uid;
     _plan = 'free';
@@ -79,8 +85,9 @@ class AuthService {
   Future<bool> signInWithGoogle() async {
     final uid = 'google_${DateTime.now().millisecondsSinceEpoch}';
     try {
-      window.localStorage[_uidKey] = uid;
-      window.localStorage[_planKey] = 'pro';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_uidKey, uid);
+      await prefs.setString(_planKey, 'pro');
     } catch (_) {}
     _uid = uid;
     _plan = 'pro';
@@ -90,10 +97,11 @@ class AuthService {
   /// Sair
   Future<void> signOut() async {
     try {
-      window.localStorage.remove(_uidKey);
-      window.localStorage.remove(_planKey);
-      window.localStorage.remove(_emailKey);
-      window.localStorage.remove(_nameKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_uidKey);
+      await prefs.remove(_planKey);
+      await prefs.remove(_emailKey);
+      await prefs.remove(_nameKey);
     } catch (_) {}
     _uid = null;
     _email = null;
@@ -121,10 +129,11 @@ class AuthService {
   }
 
   /// Marca plano como Pro
-  void upgradeToPro() async {
+  Future<void> upgradeToPro() async {
     _plan = 'pro';
     try {
-      window.localStorage[_planKey] = 'pro';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_planKey, 'pro');
     } catch (_) {}
   }
 }
